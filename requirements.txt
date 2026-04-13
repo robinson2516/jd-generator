@@ -3,6 +3,6 @@ uvicorn
 anthropic
 asyncpg
 python-jose[cryptography]
-passlib[bcrypt]
+bcrypt
 reportlab
 python-dotenv
