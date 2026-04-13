@@ -1,15 +1,18 @@
 """Generates a formatted PDF from job description text."""
 import io
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.lib.colors import HexColor
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+from reportlab.lib.colors import HexColor, white
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.lib.enums import TA_LEFT, TA_CENTER
 
-ACCENT  = HexColor("#6366F1")
-TEXT    = HexColor("#1E293B")
-MUTED   = HexColor("#64748B")
-BG_LINE = HexColor("#E2E8F0")
+INDIGO      = HexColor("#6366F1")
+INDIGO_DARK = HexColor("#4338CA")
+INDIGO_SOFT = HexColor("#EEF2FF")
+TEXT        = HexColor("#0F172A")
+MUTED       = HexColor("#64748B")
+BORDER      = HexColor("#E2E8F0")
 
 SECTIONS = {
     "job overview",
@@ -24,53 +27,80 @@ def make_pdf(job_title: str, company_name: str, content: str) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=letter,
-        leftMargin=inch, rightMargin=inch,
-        topMargin=0.9 * inch, bottomMargin=0.9 * inch,
+        leftMargin=0.85 * inch, rightMargin=0.85 * inch,
+        topMargin=0.5 * inch, bottomMargin=0.85 * inch,
     )
 
+    # ── Styles ────────────────────────────────────────────────────
     title_style = ParagraphStyle(
-        "JDTitle", fontSize=24, textColor=ACCENT,
-        fontName="Helvetica-Bold", spaceAfter=4,
+        "Title", fontSize=26, textColor=white,
+        fontName="Helvetica-Bold", leading=32, spaceAfter=4,
     )
     company_style = ParagraphStyle(
-        "JDCompany", fontSize=13, textColor=MUTED,
-        fontName="Helvetica", spaceAfter=16,
+        "Company", fontSize=13, textColor=HexColor("#C7D2FE"),
+        fontName="Helvetica", spaceAfter=0,
     )
     section_style = ParagraphStyle(
-        "JDSection", fontSize=11, textColor=ACCENT,
-        fontName="Helvetica-Bold", spaceBefore=14, spaceAfter=6,
-        textTransform="uppercase",
+        "Section", fontSize=10, textColor=INDIGO,
+        fontName="Helvetica-Bold", spaceBefore=18, spaceAfter=6,
+        letterSpacing=1.2,
     )
     body_style = ParagraphStyle(
-        "JDBody", fontSize=10, textColor=TEXT,
-        fontName="Helvetica", spaceAfter=4, leading=16,
+        "Body", fontSize=10, textColor=TEXT,
+        fontName="Helvetica", spaceAfter=5, leading=16,
     )
     bullet_style = ParagraphStyle(
-        "JDBullet", fontSize=10, textColor=TEXT,
-        fontName="Helvetica", spaceAfter=3, leading=16,
-        leftIndent=14,
+        "Bullet", fontSize=10, textColor=TEXT,
+        fontName="Helvetica", spaceAfter=4, leading=16,
+        leftIndent=16, firstLineIndent=0,
     )
 
-    story = [
+    story = []
+
+    # ── Header banner ─────────────────────────────────────────────
+    page_width = letter[0] - 1.7 * inch
+    header_data = [[
         Paragraph(job_title, title_style),
         Paragraph(company_name, company_style),
-        HRFlowable(width="100%", thickness=1, color=BG_LINE, spaceAfter=10),
-    ]
+    ]]
+    header_table = Table(header_data, colWidths=[page_width])
+    header_table.setStyle(TableStyle([
+        ("BACKGROUND",  (0, 0), (-1, -1), INDIGO),
+        ("ROUNDEDCORNERS", [8]),
+        ("TOPPADDING",  (0, 0), (-1, -1), 20),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 20),
+        ("LEFTPADDING",  (0, 0), (-1, -1), 24),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 24),
+        ("ROWBACKGROUNDS", (0, 0), (-1, -1), [INDIGO]),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 18))
 
+    # ── Body ──────────────────────────────────────────────────────
     for line in content.split("\n"):
         stripped = line.strip()
         if not stripped:
             story.append(Spacer(1, 4))
             continue
 
-        # Section header detection
         clean = stripped.rstrip(":").lower()
         if clean in SECTIONS:
-            story.append(Paragraph(stripped.rstrip(":"), section_style))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=BORDER, spaceAfter=6))
+            story.append(Paragraph(stripped.rstrip(":").upper(), section_style))
         elif stripped.startswith("- ") or stripped.startswith("• "):
-            story.append(Paragraph("• " + stripped[2:], bullet_style))
+            story.append(Paragraph("•  " + stripped[2:], bullet_style))
         else:
             story.append(Paragraph(stripped, body_style))
+
+    # ── Footer ────────────────────────────────────────────────────
+    story.append(Spacer(1, 24))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=BORDER))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(
+        f"<font color='#94A3B8'>{company_name} — {job_title}</font>",
+        ParagraphStyle("Footer", fontSize=8, fontName="Helvetica",
+                       textColor=HexColor("#94A3B8"), alignment=TA_CENTER),
+    ))
 
     doc.build(story)
     return buf.getvalue()
