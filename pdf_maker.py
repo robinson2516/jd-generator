@@ -7,12 +7,12 @@ from reportlab.lib.colors import HexColor, white
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
 
-INDIGO      = HexColor("#6366F1")
-INDIGO_DARK = HexColor("#4338CA")
-INDIGO_SOFT = HexColor("#EEF2FF")
-TEXT        = HexColor("#0F172A")
-MUTED       = HexColor("#64748B")
-BORDER      = HexColor("#E2E8F0")
+RED         = HexColor("#DC2626")
+RED_DARK    = HexColor("#B91C1C")
+BLACK       = HexColor("#111111")
+TEXT        = HexColor("#111111")
+MUTED       = HexColor("#6B7280")
+BORDER      = HexColor("#E5E5E5")
 
 SECTIONS = {
     "job overview",
@@ -37,11 +37,11 @@ def make_pdf(job_title: str, company_name: str, content: str) -> bytes:
         fontName="Helvetica-Bold", leading=32, spaceAfter=4,
     )
     company_style = ParagraphStyle(
-        "Company", fontSize=13, textColor=HexColor("#C7D2FE"),
+        "Company", fontSize=13, textColor=HexColor("#FCA5A5"),
         fontName="Helvetica", spaceAfter=0,
     )
     section_style = ParagraphStyle(
-        "Section", fontSize=10, textColor=INDIGO,
+        "Section", fontSize=10, textColor=RED,
         fontName="Helvetica-Bold", spaceBefore=18, spaceAfter=6,
         letterSpacing=1.2,
     )
@@ -65,13 +65,13 @@ def make_pdf(job_title: str, company_name: str, content: str) -> bytes:
     ]]
     header_table = Table(header_data, colWidths=[page_width])
     header_table.setStyle(TableStyle([
-        ("BACKGROUND",  (0, 0), (-1, -1), INDIGO),
+        ("BACKGROUND",  (0, 0), (-1, -1), BLACK),
         ("ROUNDEDCORNERS", [8]),
         ("TOPPADDING",  (0, 0), (-1, -1), 20),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 20),
         ("LEFTPADDING",  (0, 0), (-1, -1), 24),
         ("RIGHTPADDING", (0, 0), (-1, -1), 24),
-        ("ROWBACKGROUNDS", (0, 0), (-1, -1), [INDIGO]),
+        ("ROWBACKGROUNDS", (0, 0), (-1, -1), [BLACK]),
     ]))
     story.append(header_table)
     story.append(Spacer(1, 18))
