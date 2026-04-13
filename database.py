@@ -11,7 +11,9 @@ _pool = None
 async def get_pool():
     global _pool
     if _pool is None:
-        _pool = await asyncpg.create_pool(os.environ["DATABASE_URL"])
+        url = os.environ["DATABASE_URL"]
+        # Railway Postgres requires SSL
+        _pool = await asyncpg.create_pool(url, ssl="require")
         await _init_db(_pool)
     return _pool
 
