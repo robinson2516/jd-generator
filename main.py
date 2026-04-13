@@ -33,6 +33,23 @@ class GenerateRequest(BaseModel):
 
 
 # ── Routes ─────────────────────────────────────────────────────
+@app.get("/api/debug")
+async def debug():
+    import os, traceback
+    url = os.environ.get("DATABASE_URL", "NOT SET")
+    masked = url[:30] + "..." if len(url) > 30 else url
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.fetchval("SELECT 1")
+        db_ok = True
+        db_error = None
+    except Exception as e:
+        db_ok = False
+        db_error = traceback.format_exc()
+    return {"db_ok": db_ok, "db_error": db_error, "url_prefix": masked}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     with open("static/index.html") as f:
