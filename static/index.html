@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JD Generator</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <!-- ── Auth Screen ─────────────────────────────────────────── -->
+  <div id="auth-screen" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <span class="auth-logo-icon">📝</span>
+        <span class="auth-logo-text">JD Generator</span>
+      </div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-login" onclick="showAuthTab('login')">Sign In</button>
+        <button class="auth-tab"        id="tab-register" onclick="showAuthTab('register')">Create Account</button>
+      </div>
+
+      <!-- Login -->
+      <div id="auth-login">
+        <div class="field-group" style="margin-bottom:16px">
+          <label>Email</label>
+          <input type="email" id="login-email" placeholder="you@example.com" />
+        </div>
+        <div class="field-group" style="margin-bottom:24px">
+          <label>Password</label>
+          <input type="password" id="login-password" placeholder="••••••••" />
+        </div>
+        <button class="btn btn-primary" onclick="doLogin()">Sign In</button>
+      </div>
+
+      <!-- Register -->
+      <div id="auth-register" class="hidden">
+        <div class="field-group" style="margin-bottom:16px">
+          <label>Email</label>
+          <input type="email" id="reg-email" placeholder="you@example.com" />
+        </div>
+        <div class="field-group" style="margin-bottom:16px">
+          <label>Password</label>
+          <input type="password" id="reg-password" placeholder="Min 8 characters" />
+        </div>
+        <div class="field-group" style="margin-bottom:24px">
+          <label>Confirm Password</label>
+          <input type="password" id="reg-confirm" placeholder="••••••••" />
+        </div>
+        <button class="btn btn-primary" onclick="doRegister()">Create Account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── App Shell ────────────────────────────────────────────── -->
+  <div id="app-shell" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <span class="logo-icon">📝</span>
+        <span class="logo-text">JD Generator</span>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" id="nav-generate" onclick="showView('generate')">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          Generate JD
+        </button>
+        <button class="nav-item" id="nav-history" onclick="showView('history')">
+          <svg viewBox="0 0 24 24"><path d="M12 8v4l3 3M3.05 11a9 9 0 1 0 .5-3"/><path d="M3 4v4h4"/></svg>
+          History
+        </button>
+        <button class="nav-item logout" onclick="doLogout()" style="margin-top:auto">
+          <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          Sign Out
+        </button>
+      </nav>
+    </aside>
+
+    <main class="main">
+
+      <!-- ── Generate View ──────────────────────────────────── -->
+      <section id="view-generate">
+        <div class="page-header">
+          <h1>Generate Job Description</h1>
+          <p class="subtitle">Fill in the details and let AI write a professional JD.</p>
+        </div>
+
+        <div class="card" id="gen-form-card">
+          <div class="fields-grid">
+            <div class="field-group">
+              <label>Company Name</label>
+              <input type="text" id="f-company" placeholder="Acme Corp" />
+            </div>
+            <div class="field-group">
+              <label>Job Title</label>
+              <input type="text" id="f-title" placeholder="Senior Software Engineer" />
+            </div>
+            <div class="field-group full-width">
+              <label>Required Skills</label>
+              <textarea id="f-skills" placeholder="e.g. Python, FastAPI, PostgreSQL, REST APIs, Docker"></textarea>
+            </div>
+            <div class="field-group full-width">
+              <label>Experience / Education Level</label>
+              <input type="text" id="f-experience" placeholder="e.g. 5+ years experience, Bachelor's degree preferred" />
+            </div>
+          </div>
+          <button class="btn btn-primary" id="btn-generate" onclick="doGenerate()">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Generate Job Description
+          </button>
+        </div>
+
+        <!-- Processing -->
+        <div id="gen-processing" class="card hidden">
+          <div class="processing">
+            <div class="spinner"></div>
+            <p>Writing your job description...</p>
+          </div>
+        </div>
+
+        <!-- Result -->
+        <div id="gen-result" class="card hidden">
+          <div class="result-header">
+            <h2 id="result-title">Job Description</h2>
+          </div>
+          <div class="result-body" id="result-text"></div>
+          <div class="result-actions">
+            <button class="btn btn-ghost" onclick="resetForm()">
+              <svg viewBox="0 0 24 24"><path d="M3 4v4h4M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>
+              Start Over
+            </button>
+            <button class="btn btn-primary" id="btn-download" onclick="downloadPdf()">
+              <svg viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M7 10l5 5 5-5M12 15V3"/></svg>
+              Download PDF
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── History View ───────────────────────────────────── -->
+      <section id="view-history" class="hidden">
+        <div class="page-header">
+          <h1>History</h1>
+          <p class="subtitle">Previously generated job descriptions.</p>
+        </div>
+        <div class="card">
+          <div id="history-loading" class="processing hidden">
+            <div class="spinner"></div>
+          </div>
+          <table class="history-table" id="history-table">
+            <thead>
+              <tr>
+                <th>Job Title</th>
+                <th>Company</th>
+                <th>Date</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="history-body"></tbody>
+          </table>
+          <div id="history-empty" class="history-empty hidden">No job descriptions generated yet.</div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

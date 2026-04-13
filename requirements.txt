@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+anthropic
+asyncpg
+python-jose[cryptography]
+passlib[bcrypt]
+reportlab
+python-dotenv
