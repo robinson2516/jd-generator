@@ -94,6 +94,10 @@
               <label>Job Title</label>
               <input type="text" id="f-title" placeholder="Senior Software Engineer" />
             </div>
+            <div class="field-group">
+              <label>Company Website <span style="color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+              <input type="text" id="f-website" placeholder="e.g. acmecorp.com" />
+            </div>
             <div class="field-group full-width">
               <label>Required Skills</label>
               <textarea id="f-skills" placeholder="e.g. Python, FastAPI, PostgreSQL, REST APIs, Docker"></textarea>
@@ -113,7 +117,7 @@
         <div id="gen-processing" class="card hidden">
           <div class="processing">
             <div class="spinner"></div>
-            <p>Writing your job description...</p>
+            <p id="gen-status">Analyzing company &amp; writing job description...</p>
           </div>
         </div>
 

@@ -11,6 +11,7 @@ from database import get_pool
 from auth import hash_password, verify_password, create_token, get_current_user
 from generator import generate_job_description
 from pdf_maker import make_pdf
+from scraper import scrape_company
 
 app = FastAPI(title="JD Generator")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -30,6 +31,7 @@ class GenerateRequest(BaseModel):
     job_title: str
     skills: str
     experience_level: str
+    company_website: str = ""
 
 
 # ── Routes ─────────────────────────────────────────────────────
@@ -88,8 +90,9 @@ async def login(body: LoginRequest):
 
 @app.post("/api/generate")
 async def generate(body: GenerateRequest, user_id: int = Depends(get_current_user)):
+    company_context = await scrape_company(body.company_website) if body.company_website else ""
     text = generate_job_description(
-        body.company_name, body.job_title, body.skills, body.experience_level
+        body.company_name, body.job_title, body.skills, body.experience_level, company_context
     )
     pool = await get_pool()
     async with pool.acquire() as conn:

@@ -6,3 +6,5 @@ python-jose[cryptography]
 bcrypt
 reportlab
 python-dotenv
+httpx
+beautifulsoup4

@@ -92,6 +92,7 @@ function showView(view) {
 async function doGenerate() {
   const company    = document.getElementById('f-company').value.trim();
   const title      = document.getElementById('f-title').value.trim();
+  const website    = document.getElementById('f-website').value.trim();
   const skills     = document.getElementById('f-skills').value.trim();
   const experience = document.getElementById('f-experience').value.trim();
 
@@ -115,6 +116,7 @@ async function doGenerate() {
         job_title: title,
         skills,
         experience_level: experience,
+        company_website: website,
       }),
     });
     const data = await res.json();
