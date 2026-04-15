@@ -34,10 +34,15 @@ async def _init_db(pool):
                 id               SERIAL PRIMARY KEY,
                 user_id          INTEGER REFERENCES users(id) ON DELETE CASCADE,
                 company_name     TEXT,
+                company_website  TEXT,
                 job_title        TEXT,
                 skills           TEXT,
                 experience_level TEXT,
                 generated_text   TEXT,
                 created_at       TIMESTAMPTZ DEFAULT NOW()
             )
+        """)
+        await conn.execute("""
+            ALTER TABLE job_descriptions
+            ADD COLUMN IF NOT EXISTS company_website TEXT
         """)

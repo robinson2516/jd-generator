@@ -11,7 +11,7 @@ from database import get_pool
 from auth import hash_password, verify_password, create_token, get_current_user
 from generator import generate_job_description
 from pdf_maker import make_pdf
-from scraper import scrape_company
+from scraper import scrape_company, fetch_logo
 
 app = FastAPI(title="JD Generator")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -98,10 +98,10 @@ async def generate(body: GenerateRequest, user_id: int = Depends(get_current_use
     async with pool.acquire() as conn:
         record = await conn.fetchrow(
             """INSERT INTO job_descriptions
-               (user_id, company_name, job_title, skills, experience_level, generated_text)
-               VALUES ($1,$2,$3,$4,$5,$6) RETURNING id""",
-            user_id, body.company_name, body.job_title,
-            body.skills, body.experience_level, text,
+               (user_id, company_name, company_website, job_title, skills, experience_level, generated_text)
+               VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id""",
+            user_id, body.company_name, body.company_website or None,
+            body.job_title, body.skills, body.experience_level, text,
         )
     return {"id": record["id"], "text": text}
 
@@ -137,7 +137,8 @@ async def download_pdf(jd_id: int, user_id: int = Depends(get_current_user)):
         )
     if not row:
         raise HTTPException(status_code=404, detail="Not found.")
-    pdf = make_pdf(row["job_title"], row["company_name"], row["generated_text"])
+    logo_bytes = await fetch_logo(row["company_website"]) if row["company_website"] else None
+    pdf = make_pdf(row["job_title"], row["company_name"], row["generated_text"], logo_bytes)
     filename = re.sub(r"[^\w\s\-.]", "", f"{row['company_name']} - {row['job_title']}.pdf")
     return StreamingResponse(
         io.BytesIO(pdf),

@@ -4,8 +4,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib.colors import HexColor, white
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
-from reportlab.lib.enums import TA_LEFT, TA_CENTER
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 
 TEAL        = HexColor("#1C8391")
 TEAL_DARK   = HexColor("#0A4444")
@@ -23,7 +23,7 @@ SECTIONS = {
 }
 
 
-def make_pdf(job_title: str, company_name: str, content: str) -> bytes:
+def make_pdf(job_title: str, company_name: str, content: str, logo_bytes: bytes | None = None) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=letter,
@@ -59,20 +59,40 @@ def make_pdf(job_title: str, company_name: str, content: str) -> bytes:
 
     # ── Header banner ─────────────────────────────────────────────
     page_width = letter[0] - 1.7 * inch
+    LOGO_SIZE  = 56  # max width/height for logo
+
+    # Build logo cell
+    if logo_bytes:
+        try:
+            logo_img = Image(io.BytesIO(logo_bytes))
+            # Scale proportionally to fit LOGO_SIZE
+            ratio = min(LOGO_SIZE / logo_img.imageWidth, LOGO_SIZE / logo_img.imageHeight)
+            logo_img.drawWidth  = logo_img.imageWidth  * ratio
+            logo_img.drawHeight = logo_img.imageHeight * ratio
+            logo_cell = logo_img
+        except Exception:
+            logo_cell = Paragraph("", company_style)
+    else:
+        logo_cell = Paragraph("", company_style)
+
+    text_width = page_width - LOGO_SIZE - 16
     header_data = [
-        [Paragraph(job_title, title_style)],
-        [Paragraph(company_name, company_style)],
+        [Paragraph(job_title, title_style),    logo_cell],
+        [Paragraph(company_name, company_style), ""],
     ]
-    header_table = Table(header_data, colWidths=[page_width])
+    header_table = Table(header_data, colWidths=[text_width, LOGO_SIZE + 16])
     header_table.setStyle(TableStyle([
         ("BACKGROUND",    (0, 0), (-1, -1), TEAL_DARK),
         ("ROUNDEDCORNERS", [8]),
-        ("TOPPADDING",    (0, 0), (0, 0),   20),
-        ("BOTTOMPADDING", (0, 0), (0, 0),   2),
-        ("TOPPADDING",    (0, 1), (0, 1),   0),
-        ("BOTTOMPADDING", (0, 1), (0, 1),   20),
+        ("TOPPADDING",    (0, 0), (-1, 0),  20),
+        ("BOTTOMPADDING", (0, 0), (-1, 0),  2),
+        ("TOPPADDING",    (0, 1), (-1, 1),  0),
+        ("BOTTOMPADDING", (0, 1), (-1, 1),  20),
         ("LEFTPADDING",   (0, 0), (-1, -1), 24),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 24),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 16),
+        ("VALIGN",        (1, 0), (1, 0),   "MIDDLE"),
+        ("SPAN",          (1, 0), (1, 1)),
+        ("ALIGN",         (1, 0), (1, 1),   "RIGHT"),
     ]))
     story.append(header_table)
     story.append(Spacer(1, 18))
