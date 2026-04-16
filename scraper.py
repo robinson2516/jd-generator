@@ -86,6 +86,8 @@ def _pick_color(css_text: str) -> str | None:
     BRAND_PROPS = [
         "--color-primary", "--primary", "--brand", "--brand-primary",
         "--accent", "--main-color", "--primary-color", "--theme-color",
+        "--main", "--color-brand", "--color-accent", "--color-secondary",
+        "--secondary", "--highlight",
     ]
     # Check CSS custom properties first
     for prop in BRAND_PROPS:
@@ -101,7 +103,7 @@ def _pick_color(css_text: str) -> str | None:
         max_c, min_c = max(r, g, b), min(r, g, b)
         saturation = (max_c - min_c) / max_c if max_c else 0
         lightness = (max_c + min_c) / 510
-        if saturation > 0.2 and 0.1 < lightness < 0.9:
+        if saturation > 0.2 and saturation < 0.95 and 0.1 < lightness < 0.85:
             candidates.append("#" + h)
     if candidates:
         return Counter(candidates).most_common(1)[0][0]
