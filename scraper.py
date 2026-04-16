@@ -46,7 +46,7 @@ async def fetch_logo(url: str) -> bytes | None:
                 return None
             soup = BeautifulSoup(res.text, "html.parser")
 
-            # Priority order: og:image → apple-touch-icon → favicon
+            # Priority order: og:image → apple-touch-icon → logo img → favicon
             candidates = []
             og = soup.find("meta", property="og:image")
             if og and og.get("content"):
@@ -54,6 +54,15 @@ async def fetch_logo(url: str) -> bytes | None:
             apple = soup.find("link", rel=lambda r: r and "apple-touch-icon" in r)
             if apple and apple.get("href"):
                 candidates.append(urljoin(base, apple["href"]))
+            # <img> tags with "logo" in id, class, src, or alt
+            for img in soup.find_all("img"):
+                attrs = " ".join([
+                    img.get("id", ""), img.get("alt", ""),
+                    " ".join(img.get("class") or []), img.get("src", ""),
+                ]).lower()
+                if "logo" in attrs and img.get("src"):
+                    candidates.append(urljoin(base, img["src"]))
+                    break
             icon = soup.find("link", rel=lambda r: r and "icon" in r)
             if icon and icon.get("href"):
                 candidates.append(urljoin(base, icon["href"]))
@@ -81,32 +90,18 @@ def _luminance(hex_color: str) -> float:
 
 
 def _pick_color(css_text: str) -> str | None:
-    """Pick the most-used saturated hex color from a CSS string. Returns None if nothing useful."""
-    from collections import Counter
+    """Find a brand color via CSS custom properties only. Returns None if nothing found."""
     BRAND_PROPS = [
         "--color-primary", "--primary", "--brand", "--brand-primary",
         "--accent", "--main-color", "--primary-color", "--theme-color",
         "--main", "--color-brand", "--color-accent", "--color-secondary",
-        "--secondary", "--highlight",
+        "--secondary", "--highlight", "--btn-bg", "--button-bg",
+        "--nav-bg", "--header-bg", "--header-background",
     ]
-    # Check CSS custom properties first
     for prop in BRAND_PROPS:
         match = re.search(re.escape(prop) + r"\s*:\s*(#[0-9a-fA-F]{6})", css_text)
         if match:
             return match.group(1)
-    # Fall back to most-used saturated color
-    candidates = []
-    for h in re.findall(r"#([0-9a-fA-F]{6})\b", css_text):
-        r = int(h[0:2], 16)
-        g = int(h[2:4], 16)
-        b = int(h[4:6], 16)
-        max_c, min_c = max(r, g, b), min(r, g, b)
-        saturation = (max_c - min_c) / max_c if max_c else 0
-        lightness = (max_c + min_c) / 510
-        if saturation > 0.2 and saturation < 0.95 and 0.1 < lightness < 0.85:
-            candidates.append("#" + h)
-    if candidates:
-        return Counter(candidates).most_common(1)[0][0]
     return None
 
 
