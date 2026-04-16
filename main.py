@@ -117,6 +117,17 @@ async def debug_jd(jd_id: int, user_id: int = Depends(get_current_user)):
     return dict(row)
 
 
+@app.get("/api/debug/recent-jds")
+async def debug_recent_jds(user_id: int = Depends(get_current_user)):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, company_name, company_website, job_title, created_at FROM job_descriptions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5",
+            user_id,
+        )
+    return [dict(r) for r in rows]
+
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     with open("static/index.html") as f:
