@@ -8,3 +8,4 @@ reportlab
 python-dotenv
 httpx
 beautifulsoup4
+Pillow

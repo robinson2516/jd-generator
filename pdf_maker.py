@@ -86,11 +86,15 @@ def make_pdf(
     page_width = letter[0] - 1.7 * inch
     LOGO_SIZE  = 56  # max width/height for logo
 
-    # Build logo cell
+    # Build logo cell — convert to PNG via Pillow so reportlab handles any format (WebP, etc.)
     if logo_bytes:
         try:
-            logo_img = Image(io.BytesIO(logo_bytes))
-            # Scale proportionally to fit LOGO_SIZE
+            from PIL import Image as PILImage
+            pil_img = PILImage.open(io.BytesIO(logo_bytes)).convert("RGBA")
+            png_buf = io.BytesIO()
+            pil_img.save(png_buf, format="PNG")
+            png_buf.seek(0)
+            logo_img = Image(png_buf)
             ratio = min(LOGO_SIZE / logo_img.imageWidth, LOGO_SIZE / logo_img.imageHeight)
             logo_img.drawWidth  = logo_img.imageWidth  * ratio
             logo_img.drawHeight = logo_img.imageHeight * ratio

@@ -56,10 +56,23 @@ async def debug():
 @app.get("/api/debug/scrape")
 async def debug_scrape(url: str):
     import traceback
-    result = {"url": url, "logo": None, "colors": None, "logo_error": None, "color_error": None}
+    import httpx as _httpx
+    result = {"url": url, "logo": None, "logo_content_type": None, "colors": None, "logo_error": None, "color_error": None}
     try:
         logo = await fetch_logo(url)
         result["logo"] = f"{len(logo)} bytes" if logo else "None"
+        # Detect content type from magic bytes
+        if logo:
+            if logo[:4] == b'RIFF' and logo[8:12] == b'WEBP':
+                result["logo_content_type"] = "image/webp"
+            elif logo[:8] == b'\x89PNG\r\n\x1a\n':
+                result["logo_content_type"] = "image/png"
+            elif logo[:2] == b'\xff\xd8':
+                result["logo_content_type"] = "image/jpeg"
+            elif logo[:6] in (b'GIF87a', b'GIF89a'):
+                result["logo_content_type"] = "image/gif"
+            else:
+                result["logo_content_type"] = f"unknown (starts: {logo[:8].hex()})"
     except Exception:
         result["logo_error"] = traceback.format_exc()
     try:
@@ -68,6 +81,19 @@ async def debug_scrape(url: str):
     except Exception:
         result["color_error"] = traceback.format_exc()
     return result
+
+
+@app.get("/api/debug/jd/{jd_id}")
+async def debug_jd(jd_id: int, user_id: int = Depends(get_current_user)):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, company_name, company_website, job_title, created_at FROM job_descriptions WHERE id = $1 AND user_id = $2",
+            jd_id, user_id,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found.")
+    return dict(row)
 
 
 @app.get("/", response_class=HTMLResponse)
