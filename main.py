@@ -83,6 +83,27 @@ async def debug_scrape(url: str):
     return result
 
 
+@app.get("/api/debug/test-pdf")
+async def debug_test_pdf(url: str):
+    """Generate a test PDF using logo + colors scraped from url."""
+    logo_bytes, brand_colors = await asyncio.gather(
+        fetch_logo(url),
+        extract_brand_colors(url),
+    )
+    pdf = make_pdf(
+        "Senior Software Engineer",
+        "Test Company",
+        "Job Overview\nThis is a test job description.\n\nKey Responsibilities\n- Write code\n- Review PRs",
+        logo_bytes,
+        brand_colors,
+    )
+    return StreamingResponse(
+        io.BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=test.pdf"},
+    )
+
+
 @app.get("/api/debug/jd/{jd_id}")
 async def debug_jd(jd_id: int, user_id: int = Depends(get_current_user)):
     pool = await get_pool()
