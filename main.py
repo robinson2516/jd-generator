@@ -196,6 +196,7 @@ async def history(user_id: int = Depends(get_current_user)):
         {
             "id": r["id"],
             "company_name": r["company_name"],
+            "company_website": r["company_website"],
             "job_title": r["job_title"],
             "created_at": r["created_at"].isoformat(),
         }

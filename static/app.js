@@ -202,6 +202,7 @@ async function loadHistory() {
         <tr>
           <td>${escHtml(r.job_title)}</td>
           <td>${escHtml(r.company_name)}</td>
+          <td style="color:var(--text-muted)">${escHtml(r.company_website || '—')}</td>
           <td style="color:var(--text-muted)">${date}</td>
           <td style="text-align:right">
             <button class="btn btn-ghost" style="padding:6px 14px;font-size:12px"
