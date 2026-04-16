@@ -215,6 +215,7 @@ async def download_pdf(jd_id: int, user_id: int = Depends(get_current_user)):
     if not row:
         raise HTTPException(status_code=404, detail="Not found.")
     website = (row["company_website"] or "").strip()
+    print(f"[PDF] jd_id={jd_id} website='{website}'")
     logo_bytes, brand_colors = None, None
     if website:
         try:
@@ -222,9 +223,12 @@ async def download_pdf(jd_id: int, user_id: int = Depends(get_current_user)):
                 fetch_logo(website),
                 extract_brand_colors(website),
             )
-        except Exception:
-            pass
+            print(f"[PDF] logo={len(logo_bytes) if logo_bytes else None} colors={brand_colors}")
+        except Exception as e:
+            import traceback
+            print(f"[PDF] fetch error: {traceback.format_exc()}")
     pdf = make_pdf(row["job_title"], row["company_name"], row["generated_text"], logo_bytes, brand_colors)
+    print(f"[PDF] generated {len(pdf)} bytes")
     filename = re.sub(r"[^\w\s\-.]", "", f"{row['company_name']} - {row['job_title']}.pdf")
     return StreamingResponse(
         io.BytesIO(pdf),
