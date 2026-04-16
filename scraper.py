@@ -161,13 +161,21 @@ async def extract_brand_colors(url: str) -> dict:
             lum = _luminance(color)
             return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
 
-        # 3. External stylesheets (up to 3, cap at 80KB each)
-        ext_css = ""
-        sheet_links = [
+        # 3. External stylesheets — skip frameworks, prefer same-domain
+        SKIP_KEYWORDS = ("bootstrap", "fontawesome", "font-awesome", "foundation",
+                         "bulma", "tailwind", "animate", "jquery", "normalize", "reset")
+        all_sheets = [
             urljoin(base, tag["href"])
             for tag in soup.find_all("link", rel=lambda r: r and "stylesheet" in r)
             if tag.get("href")
-        ][:3]
+        ]
+        same_domain = [s for s in all_sheets if urlparse(s).netloc == urlparse(base).netloc
+                       and not any(k in s.lower() for k in SKIP_KEYWORDS)]
+        other = [s for s in all_sheets if s not in same_domain
+                 and not any(k in s.lower() for k in SKIP_KEYWORDS)]
+        sheet_links = (same_domain + other)[:3]
+
+        ext_css = ""
         for sheet_url in sheet_links:
             try:
                 sheet_res = await client.get(sheet_url)
