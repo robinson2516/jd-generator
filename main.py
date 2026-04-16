@@ -187,7 +187,7 @@ async def history(user_id: int = Depends(get_current_user)):
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """SELECT id, company_name, job_title, created_at
+            """SELECT id, company_name, company_website, job_title, created_at
                FROM job_descriptions WHERE user_id = $1
                ORDER BY created_at DESC""",
             user_id,
