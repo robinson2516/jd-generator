@@ -125,11 +125,22 @@ def _pick_color(css_text: str) -> str | None:
     return None
 
 
+def _is_usable_brand_color(hex_color: str) -> bool:
+    """Return True if color is suitable as a PDF header background (not too dark/light/grey)."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    lum = _luminance(hex_color)
+    max_c, min_c = max(r, g, b), min(r, g, b)
+    saturation = (max_c - min_c) / max_c if max_c else 0
+    # Must have some color (not grey) and not be near-black or near-white
+    return saturation > 0.15 and 0.04 < lum < 0.75
+
+
 async def extract_brand_colors(url: str) -> dict:
     """
-    Extract primary brand color from a company website.
+    Extract primary brand color from a company website using Claude AI.
+    Falls back to CSS parsing, then defaults if needed.
     Returns {"primary": "#RRGGBB", "text_on_primary": "white" | "dark"}.
-    Falls back to defaults (teal) if nothing found.
     """
     DEFAULT = {"primary": "#0A4444", "text_on_primary": "white"}
     if not url:
@@ -147,23 +158,18 @@ async def extract_brand_colors(url: str) -> dict:
 
         soup = BeautifulSoup(res.text, "html.parser")
 
-        # 1. <meta name="theme-color">
+        # 1. <meta name="theme-color"> — most reliable signal
         meta = soup.find("meta", attrs={"name": "theme-color"})
         if meta and meta.get("content", "").startswith("#"):
             color = meta["content"][:7]
-            lum = _luminance(color)
-            return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
+            if _is_usable_brand_color(color):
+                lum = _luminance(color)
+                return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
 
-        # 2. Inline <style> tags
-        inline_css = " ".join(tag.string or "" for tag in soup.find_all("style"))
-        color = _pick_color(inline_css)
-        if color:
-            lum = _luminance(color)
-            return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
-
-        # 3. External stylesheets — skip frameworks, prefer same-domain
+        # 2. Collect CSS: inline first, then same-domain external sheets
         SKIP_KEYWORDS = ("bootstrap", "fontawesome", "font-awesome", "foundation",
                          "bulma", "tailwind", "animate", "jquery", "normalize", "reset")
+        inline_css = " ".join(tag.string or "" for tag in soup.find_all("style"))
         all_sheets = [
             urljoin(base, tag["href"])
             for tag in soup.find_all("link", rel=lambda r: r and "stylesheet" in r)
@@ -171,28 +177,53 @@ async def extract_brand_colors(url: str) -> dict:
         ]
         same_domain = [s for s in all_sheets if urlparse(s).netloc == urlparse(base).netloc
                        and not any(k in s.lower() for k in SKIP_KEYWORDS)]
-        other = [s for s in all_sheets if s not in same_domain
-                 and not any(k in s.lower() for k in SKIP_KEYWORDS)]
-        sheet_links = (same_domain + other)[:3]
-
         ext_css = ""
-        for sheet_url in sheet_links:
+        for sheet_url in same_domain[:3]:
             try:
                 sheet_res = await client.get(sheet_url)
                 if sheet_res.status_code == 200:
                     ext_css += sheet_res.text[:80000]
             except Exception:
                 continue
-        if ext_css:
-            color = _pick_color(ext_css)
+
+        all_css = inline_css + " " + ext_css
+
+        # 3. CSS custom properties
+        color = _pick_color(all_css)
+        if color and _is_usable_brand_color(color):
+            lum = _luminance(color)
+            return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
+
+        # 4. Background color on nav/header/button selectors
+        color = _pick_bg_color(all_css)
+        if color and _is_usable_brand_color(color):
+            lum = _luminance(color)
+            return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
+
+        # 5. Ask Claude to identify the brand color from page HTML snippet
+        try:
+            import anthropic, os
+            snippet = str(soup)[:8000]
+            client_ai = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+            msg = client_ai.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=20,
+                messages=[{
+                    "role": "user",
+                    "content": (
+                        f"Look at this HTML from {base} and reply with ONLY the single most prominent "
+                        f"brand/primary hex color (e.g. #1C8391). No explanation.\n\n{snippet}"
+                    ),
+                }],
+            )
+            color = re.search(r"#[0-9a-fA-F]{6}", msg.content[0].text)
             if color:
-                lum = _luminance(color)
-                return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
-            # Fallback: background-color on nav/header/button selectors in external CSS
-            color = _pick_bg_color(ext_css)
-            if color:
-                lum = _luminance(color)
-                return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
+                c = color.group(0)
+                if _is_usable_brand_color(c):
+                    lum = _luminance(c)
+                    return {"primary": c, "text_on_primary": "white" if lum < 0.4 else "dark"}
+        except Exception:
+            pass
 
     return DEFAULT
 
