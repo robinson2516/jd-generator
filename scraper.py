@@ -72,7 +72,11 @@ async def fetch_logo(url: str) -> bytes | None:
                 try:
                     img_res = await client.get(img_url)
                     if img_res.status_code == 200 and len(img_res.content) > 100:
-                        return img_res.content
+                        # Skip SVGs — reportlab/Pillow can't render them
+                        content = img_res.content
+                        is_svg = content[:200].lstrip().startswith(b"<") and b"svg" in content[:200].lower()
+                        if not is_svg:
+                            return content
                 except Exception:
                     continue
         except Exception:

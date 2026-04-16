@@ -90,6 +90,10 @@ def make_pdf(
     if logo_bytes:
         try:
             from PIL import Image as PILImage
+            # Skip SVGs — Pillow can't render them
+            is_svg = logo_bytes[:200].lstrip().startswith(b"<") and b"svg" in logo_bytes[:200].lower()
+            if is_svg:
+                raise ValueError("SVG not supported")
             pil_img = PILImage.open(io.BytesIO(logo_bytes)).convert("RGBA")
             png_buf = io.BytesIO()
             pil_img.save(png_buf, format="PNG")
