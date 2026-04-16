@@ -55,6 +55,17 @@ async def debug():
 
 
 
+@app.get("/api/debug/scrape")
+async def debug_scrape(url: str):
+    logo = await fetch_logo(url)
+    colors = await extract_brand_colors(url)
+    return {
+        "url": url,
+        "logo": f"{len(logo)} bytes" if logo else None,
+        "colors": colors,
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     with open("static/index.html") as f:
