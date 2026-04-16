@@ -89,6 +89,26 @@ def _luminance(hex_color: str) -> float:
     return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b)
 
 
+def _pick_bg_color(css_text: str) -> str | None:
+    """Find background-color used on nav/header/button selectors — likely a brand color."""
+    pattern = re.compile(
+        r'(?:nav|header|\.header|\.nav|\.navbar|\.btn|button|\.site-header|\.top-bar)'
+        r'[^{]{0,120}\{[^}]{0,400}background(?:-color)?\s*:\s*(#[0-9a-fA-F]{6})',
+        re.IGNORECASE | re.DOTALL,
+    )
+    colors = []
+    for match in pattern.finditer(css_text):
+        c = match.group(1)
+        r = int(c[1:3], 16); g = int(c[3:5], 16); b = int(c[5:7], 16)
+        # Skip near-white and near-black
+        if 20 < r + g + b < 700:
+            colors.append(c)
+    if colors:
+        from collections import Counter
+        return Counter(colors).most_common(1)[0][0]
+    return None
+
+
 def _pick_color(css_text: str) -> str | None:
     """Find a brand color via CSS custom properties only. Returns None if nothing found."""
     BRAND_PROPS = [
@@ -141,22 +161,27 @@ async def extract_brand_colors(url: str) -> dict:
             lum = _luminance(color)
             return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
 
-        # 3. External stylesheets (up to 2, cap at 50KB each)
+        # 3. External stylesheets (up to 3, cap at 80KB each)
         ext_css = ""
         sheet_links = [
             urljoin(base, tag["href"])
             for tag in soup.find_all("link", rel=lambda r: r and "stylesheet" in r)
             if tag.get("href")
-        ][:2]
+        ][:3]
         for sheet_url in sheet_links:
             try:
                 sheet_res = await client.get(sheet_url)
                 if sheet_res.status_code == 200:
-                    ext_css += sheet_res.text[:50000]
+                    ext_css += sheet_res.text[:80000]
             except Exception:
                 continue
         if ext_css:
             color = _pick_color(ext_css)
+            if color:
+                lum = _luminance(color)
+                return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
+            # Fallback: background-color on nav/header/button selectors in external CSS
+            color = _pick_bg_color(ext_css)
             if color:
                 lum = _luminance(color)
                 return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}

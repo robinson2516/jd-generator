@@ -57,12 +57,28 @@ async def debug():
 
 @app.get("/api/debug/scrape")
 async def debug_scrape(url: str):
-    logo = await fetch_logo(url)
-    colors = await extract_brand_colors(url)
+    import httpx as _httpx
+    from bs4 import BeautifulSoup as _BS
+    from urllib.parse import urljoin as _urljoin
+    from scraper import HEADERS, _normalize_url
+    logo, colors = await asyncio.gather(fetch_logo(url), extract_brand_colors(url))
+    # Also show stylesheet URLs found on the page
+    norm = _normalize_url(url)
+    sheets = []
+    try:
+        async with _httpx.AsyncClient(headers=HEADERS, timeout=10, follow_redirects=True) as c:
+            res = await c.get(norm)
+            soup = _BS(res.text, "html.parser")
+            from urllib.parse import urlparse as _up
+            base = f"{_up(norm).scheme}://{_up(norm).netloc}"
+            sheets = [_urljoin(base, t["href"]) for t in soup.find_all("link", rel=lambda r: r and "stylesheet" in r) if t.get("href")][:3]
+    except Exception:
+        pass
     return {
         "url": url,
         "logo": f"{len(logo)} bytes" if logo else None,
         "colors": colors,
+        "stylesheets_found": sheets,
     }
 
 
