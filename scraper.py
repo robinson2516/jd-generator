@@ -62,7 +62,7 @@ async def fetch_logo(url: str) -> bytes | None:
             for img_url in candidates:
                 try:
                     img_res = await client.get(img_url)
-                    if img_res.status_code == 200 and len(img_res.content) > 500:
+                    if img_res.status_code == 200 and len(img_res.content) > 100:
                         return img_res.content
                 except Exception:
                     continue
@@ -80,6 +80,34 @@ def _luminance(hex_color: str) -> float:
     return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b)
 
 
+def _pick_color(css_text: str) -> str | None:
+    """Pick the most-used saturated hex color from a CSS string. Returns None if nothing useful."""
+    from collections import Counter
+    BRAND_PROPS = [
+        "--color-primary", "--primary", "--brand", "--brand-primary",
+        "--accent", "--main-color", "--primary-color", "--theme-color",
+    ]
+    # Check CSS custom properties first
+    for prop in BRAND_PROPS:
+        match = re.search(re.escape(prop) + r"\s*:\s*(#[0-9a-fA-F]{6})", css_text)
+        if match:
+            return match.group(1)
+    # Fall back to most-used saturated color
+    candidates = []
+    for h in re.findall(r"#([0-9a-fA-F]{6})\b", css_text):
+        r = int(h[0:2], 16)
+        g = int(h[2:4], 16)
+        b = int(h[4:6], 16)
+        max_c, min_c = max(r, g, b), min(r, g, b)
+        saturation = (max_c - min_c) / max_c if max_c else 0
+        lightness = (max_c + min_c) / 510
+        if saturation > 0.2 and 0.1 < lightness < 0.9:
+            candidates.append("#" + h)
+    if candidates:
+        return Counter(candidates).most_common(1)[0][0]
+    return None
+
+
 async def extract_brand_colors(url: str) -> dict:
     """
     Extract primary brand color from a company website.
@@ -90,12 +118,7 @@ async def extract_brand_colors(url: str) -> dict:
     if not url:
         return DEFAULT
     url = _normalize_url(url)
-
-    # CSS property names likely to hold a brand primary color
-    BRAND_PROPS = [
-        "--color-primary", "--primary", "--brand", "--brand-primary",
-        "--accent", "--main-color", "--primary-color", "--theme-color",
-    ]
+    base = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
 
     async with httpx.AsyncClient(headers=HEADERS, timeout=10, follow_redirects=True) as client:
         try:
@@ -105,44 +128,41 @@ async def extract_brand_colors(url: str) -> dict:
         except Exception:
             return DEFAULT
 
-    soup = BeautifulSoup(res.text, "html.parser")
+        soup = BeautifulSoup(res.text, "html.parser")
 
-    # 1. <meta name="theme-color">
-    meta = soup.find("meta", attrs={"name": "theme-color"})
-    if meta and meta.get("content", "").startswith("#"):
-        color = meta["content"][:7]
-        lum = _luminance(color)
-        return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
-
-    # 2. CSS custom properties in <style> tags
-    css_text = " ".join(tag.string or "" for tag in soup.find_all("style"))
-    for prop in BRAND_PROPS:
-        pattern = re.escape(prop) + r"\s*:\s*(#[0-9a-fA-F]{6})"
-        match = re.search(pattern, css_text)
-        if match:
-            color = match.group(1)
+        # 1. <meta name="theme-color">
+        meta = soup.find("meta", attrs={"name": "theme-color"})
+        if meta and meta.get("content", "").startswith("#"):
+            color = meta["content"][:7]
             lum = _luminance(color)
             return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
 
-    # 3. Most frequently used hex color in all <style> tags
-    hex_colors = re.findall(r"#([0-9a-fA-F]{6})\b", css_text)
-    if hex_colors:
-        # Filter out near-white, near-black, and near-grey
-        candidates = []
-        for h in hex_colors:
-            r = int(h[0:2], 16)
-            g = int(h[2:4], 16)
-            b = int(h[4:6], 16)
-            max_c, min_c = max(r, g, b), min(r, g, b)
-            saturation = (max_c - min_c) / max_c if max_c else 0
-            lightness = (max_c + min_c) / 510
-            if saturation > 0.2 and 0.1 < lightness < 0.9:
-                candidates.append("#" + h)
-        if candidates:
-            from collections import Counter
-            color = Counter(candidates).most_common(1)[0][0]
+        # 2. Inline <style> tags
+        inline_css = " ".join(tag.string or "" for tag in soup.find_all("style"))
+        color = _pick_color(inline_css)
+        if color:
             lum = _luminance(color)
             return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
+
+        # 3. External stylesheets (up to 2, cap at 50KB each)
+        ext_css = ""
+        sheet_links = [
+            urljoin(base, tag["href"])
+            for tag in soup.find_all("link", rel=lambda r: r and "stylesheet" in r)
+            if tag.get("href")
+        ][:2]
+        for sheet_url in sheet_links:
+            try:
+                sheet_res = await client.get(sheet_url)
+                if sheet_res.status_code == 200:
+                    ext_css += sheet_res.text[:50000]
+            except Exception:
+                continue
+        if ext_css:
+            color = _pick_color(ext_css)
+            if color:
+                lum = _luminance(color)
+                return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
 
     return DEFAULT
 
