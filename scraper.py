@@ -10,6 +10,20 @@ HEADERS = {
 MAX_CHARS = 3000  # limit context sent to Claude
 
 
+def _normalize_url(url: str) -> str:
+    """Ensure URL has https:// and strip www. for consistency."""
+    if not url:
+        return url
+    if not url.startswith("http"):
+        url = "https://" + url
+    # Strip www. so torqmtb.com and www.torqmtb.com both resolve the same way
+    parsed = urlparse(url)
+    host = parsed.netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return parsed._replace(netloc=host).geturl()
+
+
 def _extract_text(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     # Remove noise
@@ -22,8 +36,7 @@ async def fetch_logo(url: str) -> bytes | None:
     """Try to fetch the company logo from og:image, apple-touch-icon, or favicon."""
     if not url:
         return None
-    if not url.startswith("http"):
-        url = "https://" + url
+    url = _normalize_url(url)
     base = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
 
     async with httpx.AsyncClient(headers=HEADERS, timeout=10, follow_redirects=True) as client:
@@ -76,8 +89,7 @@ async def extract_brand_colors(url: str) -> dict:
     DEFAULT = {"primary": "#0A4444", "text_on_primary": "white"}
     if not url:
         return DEFAULT
-    if not url.startswith("http"):
-        url = "https://" + url
+    url = _normalize_url(url)
 
     # CSS property names likely to hold a brand primary color
     BRAND_PROPS = [
@@ -139,8 +151,7 @@ async def scrape_company(url: str) -> str:
     """Fetch homepage and /about page, return combined plain text (capped at MAX_CHARS)."""
     if not url:
         return ""
-    if not url.startswith("http"):
-        url = "https://" + url
+    url = _normalize_url(url)
 
     base = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
     pages = [url, urljoin(base, "/about"), urljoin(base, "/about-us")]
