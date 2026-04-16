@@ -3,6 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
+import asyncio
 import uvicorn
 import io
 import re
@@ -11,7 +12,7 @@ from database import get_pool
 from auth import hash_password, verify_password, create_token, get_current_user
 from generator import generate_job_description
 from pdf_maker import make_pdf
-from scraper import scrape_company, fetch_logo
+from scraper import scrape_company, fetch_logo, extract_brand_colors
 
 app = FastAPI(title="JD Generator")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -137,8 +138,14 @@ async def download_pdf(jd_id: int, user_id: int = Depends(get_current_user)):
         )
     if not row:
         raise HTTPException(status_code=404, detail="Not found.")
-    logo_bytes = await fetch_logo(row["company_website"]) if row["company_website"] else None
-    pdf = make_pdf(row["job_title"], row["company_name"], row["generated_text"], logo_bytes)
+    website = row["company_website"]
+    logo_bytes, brand_colors = None, None
+    if website:
+        logo_bytes, brand_colors = await asyncio.gather(
+            fetch_logo(website),
+            extract_brand_colors(website),
+        )
+    pdf = make_pdf(row["job_title"], row["company_name"], row["generated_text"], logo_bytes, brand_colors)
     filename = re.sub(r"[^\w\s\-.]", "", f"{row['company_name']} - {row['job_title']}.pdf")
     return StreamingResponse(
         io.BytesIO(pdf),

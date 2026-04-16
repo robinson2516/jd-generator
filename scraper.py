@@ -1,4 +1,5 @@
 """Scrapes a company website to extract mission, vision, and about info."""
+import re
 import httpx
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
@@ -55,6 +56,83 @@ async def fetch_logo(url: str) -> bytes | None:
         except Exception:
             return None
     return None
+
+
+def _luminance(hex_color: str) -> float:
+    """Return relative luminance (0=black, 1=white) for a hex color like #RRGGBB."""
+    hex_color = hex_color.lstrip("#")
+    r, g, b = (int(hex_color[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+    def linearize(c):
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b)
+
+
+async def extract_brand_colors(url: str) -> dict:
+    """
+    Extract primary brand color from a company website.
+    Returns {"primary": "#RRGGBB", "text_on_primary": "white" | "dark"}.
+    Falls back to defaults (teal) if nothing found.
+    """
+    DEFAULT = {"primary": "#0A4444", "text_on_primary": "white"}
+    if not url:
+        return DEFAULT
+    if not url.startswith("http"):
+        url = "https://" + url
+
+    # CSS property names likely to hold a brand primary color
+    BRAND_PROPS = [
+        "--color-primary", "--primary", "--brand", "--brand-primary",
+        "--accent", "--main-color", "--primary-color", "--theme-color",
+    ]
+
+    async with httpx.AsyncClient(headers=HEADERS, timeout=10, follow_redirects=True) as client:
+        try:
+            res = await client.get(url)
+            if res.status_code != 200:
+                return DEFAULT
+        except Exception:
+            return DEFAULT
+
+    soup = BeautifulSoup(res.text, "html.parser")
+
+    # 1. <meta name="theme-color">
+    meta = soup.find("meta", attrs={"name": "theme-color"})
+    if meta and meta.get("content", "").startswith("#"):
+        color = meta["content"][:7]
+        lum = _luminance(color)
+        return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
+
+    # 2. CSS custom properties in <style> tags
+    css_text = " ".join(tag.string or "" for tag in soup.find_all("style"))
+    for prop in BRAND_PROPS:
+        pattern = re.escape(prop) + r"\s*:\s*(#[0-9a-fA-F]{6})"
+        match = re.search(pattern, css_text)
+        if match:
+            color = match.group(1)
+            lum = _luminance(color)
+            return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
+
+    # 3. Most frequently used hex color in all <style> tags
+    hex_colors = re.findall(r"#([0-9a-fA-F]{6})\b", css_text)
+    if hex_colors:
+        # Filter out near-white, near-black, and near-grey
+        candidates = []
+        for h in hex_colors:
+            r = int(h[0:2], 16)
+            g = int(h[2:4], 16)
+            b = int(h[4:6], 16)
+            max_c, min_c = max(r, g, b), min(r, g, b)
+            saturation = (max_c - min_c) / max_c if max_c else 0
+            lightness = (max_c + min_c) / 510
+            if saturation > 0.2 and 0.1 < lightness < 0.9:
+                candidates.append("#" + h)
+        if candidates:
+            from collections import Counter
+            color = Counter(candidates).most_common(1)[0][0]
+            lum = _luminance(color)
+            return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
+
+    return DEFAULT
 
 
 async def scrape_company(url: str) -> str:

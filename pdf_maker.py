@@ -14,6 +14,16 @@ TEXT        = HexColor("#0A4444")
 MUTED       = HexColor("#5C6B72")
 BORDER      = HexColor("#DDD9CE")
 
+def _lighten(hex_color: str, factor: float = 0.55) -> HexColor:
+    """Return a lightened/desaturated tint of a hex color for subtitle text."""
+    h = hex_color.lstrip("#")
+    r, g, b = (int(h[i:i+2], 16) for i in (0, 2, 4))
+    r2 = int(r + (255 - r) * factor)
+    g2 = int(g + (255 - g) * factor)
+    b2 = int(b + (255 - b) * factor)
+    return HexColor(f"#{r2:02X}{g2:02X}{b2:02X}")
+
+
 SECTIONS = {
     "job overview",
     "key responsibilities",
@@ -23,7 +33,22 @@ SECTIONS = {
 }
 
 
-def make_pdf(job_title: str, company_name: str, content: str, logo_bytes: bytes | None = None) -> bytes:
+def make_pdf(
+    job_title: str,
+    company_name: str,
+    content: str,
+    logo_bytes: bytes | None = None,
+    brand_colors: dict | None = None,
+) -> bytes:
+    # Resolve colors — fall back to defaults
+    bc = brand_colors or {}
+    header_bg    = HexColor(bc.get("primary", "#0A4444"))
+    on_header    = white if bc.get("text_on_primary", "white") == "white" else HexColor("#1A1A1A")
+    section_color = HexColor(bc.get("primary", "#1C8391")) if bc else TEAL
+
+    # Derive a lighter tint for the company name subtitle (~60% lighter)
+    header_subtitle = HexColor("#C4EFE4") if not bc.get("primary") else _lighten(bc["primary"])
+
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=letter,
@@ -33,15 +58,15 @@ def make_pdf(job_title: str, company_name: str, content: str, logo_bytes: bytes 
 
     # ── Styles ────────────────────────────────────────────────────
     title_style = ParagraphStyle(
-        "Title", fontSize=26, textColor=white,
+        "Title", fontSize=26, textColor=on_header,
         fontName="Helvetica-Bold", leading=32, spaceAfter=4,
     )
     company_style = ParagraphStyle(
-        "Company", fontSize=13, textColor=HexColor("#C4EFE4"),
+        "Company", fontSize=13, textColor=header_subtitle,
         fontName="Helvetica", spaceAfter=0,
     )
     section_style = ParagraphStyle(
-        "Section", fontSize=10, textColor=TEAL,
+        "Section", fontSize=10, textColor=section_color,
         fontName="Helvetica-Bold", spaceBefore=18, spaceAfter=6,
         letterSpacing=1.2,
     )
@@ -82,7 +107,7 @@ def make_pdf(job_title: str, company_name: str, content: str, logo_bytes: bytes 
     ]
     header_table = Table(header_data, colWidths=[text_width, LOGO_SIZE + 16])
     header_table.setStyle(TableStyle([
-        ("BACKGROUND",    (0, 0), (-1, -1), TEAL_DARK),
+        ("BACKGROUND",    (0, 0), (-1, -1), header_bg),
         ("ROUNDEDCORNERS", [8]),
         ("TOPPADDING",    (0, 0), (-1, 0),  20),
         ("BOTTOMPADDING", (0, 0), (-1, 0),  2),
