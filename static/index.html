@@ -8,6 +8,69 @@
 </head>
 <body>
 
+  <!-- ── Landing Page ────────────────────────────────────────── -->
+  <div id="landing-page">
+    <nav class="landing-nav">
+      <div class="landing-nav-logo">
+        <span>📝</span>
+        <span>Job Description Generator</span>
+      </div>
+      <div class="landing-nav-actions">
+        <button class="landing-nav-link" onclick="showAuth('login')">Sign In</button>
+        <button class="btn-landing-cta" onclick="showAuth('register')">Get Started Free</button>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div class="hero-content">
+        <div class="hero-badge">AI-Powered · No Templates · No Credit Card</div>
+        <h1 class="hero-headline">Stop Writing Job Descriptions From Scratch</h1>
+        <p class="hero-sub">Most job description tools give you the same generic template everyone else is posting. We do something different.</p>
+        <p class="hero-sub">Just enter your company website and we'll analyze your brand voice, culture, and values — then write a job description that actually sounds like <em>you</em>. Not a copy-paste from a template library. Not a bland list of bullet points. A real, compelling post that attracts candidates who are the right fit for your company specifically.</p>
+        <button class="btn-hero" onclick="showAuth('register')">Try it free — No credit card required</button>
+      </div>
+      <div class="hero-image">
+        <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=700&q=80" alt="HR professional" />
+      </div>
+    </section>
+
+    <section class="how-it-works">
+      <h2>Here's how it works</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-text">
+            <strong>Enter your company URL and job details</strong>
+            <p>Just your website, job title, required skills, and experience level.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-text">
+            <strong>Our AI reads your website and learns your voice</strong>
+            <p>We analyze your brand, culture, and values — not just keywords.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-text">
+            <strong>Get a polished, on-brand job description in seconds</strong>
+            <p>Download a professional PDF ready to post anywhere.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="landing-cta-section">
+      <h2>Whether you're a small business owner hiring your fifth employee or an HR team filling twenty roles a quarter, your job posts should reflect who you are — because the right candidates are paying attention.</h2>
+      <button class="btn-hero" onclick="showAuth('register')">Try it free. No credit card required.</button>
+    </section>
+
+    <footer class="landing-footer">
+      <span>© 2026 Job Description Generator</span>
+    </footer>
+  </div>
+
   <!-- ── Auth Screen ─────────────────────────────────────────── -->
   <div id="auth-screen" class="auth-screen hidden">
     <div class="auth-image">

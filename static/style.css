@@ -31,6 +31,176 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ── Landing Page ───────────────────────────────────────────── */
+.landing-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 48px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-light);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.landing-nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.landing-nav-actions { display: flex; align-items: center; gap: 16px; }
+.landing-nav-link {
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: color var(--transition);
+}
+.landing-nav-link:hover { color: var(--text); }
+.btn-landing-cta {
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid var(--text);
+  border-radius: 6px;
+  padding: 9px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--transition);
+}
+.btn-landing-cta:hover { background: var(--accent-hover); }
+
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 60px;
+  padding: 80px 48px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.hero-content { flex: 1; }
+.hero-badge {
+  display: inline-block;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: 20px;
+  margin-bottom: 24px;
+}
+.hero-headline {
+  font-size: 42px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.15;
+  margin-bottom: 20px;
+  letter-spacing: -.5px;
+}
+.hero-sub {
+  font-size: 16px;
+  color: var(--text-muted);
+  line-height: 1.75;
+  margin-bottom: 16px;
+}
+.hero-sub em { color: var(--text); font-style: normal; font-weight: 600; }
+.btn-hero {
+  display: inline-block;
+  margin-top: 12px;
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid var(--text);
+  border-radius: 6px;
+  padding: 14px 32px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--transition), box-shadow var(--transition);
+  box-shadow: 0 2px 8px rgba(28,131,145,.25);
+}
+.btn-hero:hover { background: var(--accent-hover); box-shadow: 0 4px 16px rgba(28,131,145,.35); }
+.hero-image {
+  flex: 0 0 400px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+.hero-image img { width: 100%; height: 480px; object-fit: cover; object-position: top; display: block; }
+
+.how-it-works {
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  padding: 72px 48px;
+  text-align: center;
+}
+.how-it-works h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 48px;
+}
+.steps {
+  display: flex;
+  gap: 40px;
+  max-width: 900px;
+  margin: 0 auto;
+  text-align: left;
+}
+.step {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.step-number {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+}
+.step-text strong { display: block; font-size: 15px; color: var(--text); margin-bottom: 6px; }
+.step-text p { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+.landing-cta-section {
+  padding: 80px 48px;
+  max-width: 760px;
+  margin: 0 auto;
+  text-align: center;
+}
+.landing-cta-section h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.65;
+  margin-bottom: 32px;
+}
+
+.landing-footer {
+  text-align: center;
+  padding: 24px;
+  font-size: 13px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-light);
+}
+
 /* ── Auth Screen ────────────────────────────────────────────── */
 .auth-screen {
   display: flex;

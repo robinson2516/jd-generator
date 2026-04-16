@@ -5,11 +5,17 @@ let currentJdId = null;
 document.addEventListener('DOMContentLoaded', () => {
   const token = localStorage.getItem('jd_token');
   if (token) {
+    document.getElementById('landing-page').classList.add('hidden');
     showApp();
-  } else {
-    document.getElementById('auth-screen').classList.remove('hidden');
   }
+  // Landing page is visible by default (no hidden class needed)
 });
+
+function showAuth(tab) {
+  document.getElementById('landing-page').classList.add('hidden');
+  document.getElementById('auth-screen').classList.remove('hidden');
+  showAuthTab(tab);
+}
 
 /* ── Auth Tabs ───────────────────────────────────────────────── */
 function showAuthTab(tab) {
@@ -69,7 +75,7 @@ async function doLogin() {
 /* ── Logout ──────────────────────────────────────────────────── */
 function doLogout() {
   localStorage.removeItem('jd_token');
-  location.reload();
+  location.reload(); // reloads to landing page
 }
 
 /* ── Show App ────────────────────────────────────────────────── */
