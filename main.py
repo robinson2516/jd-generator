@@ -53,6 +53,23 @@ async def debug():
     return {"db_ok": db_ok, "db_error": db_error, "url_prefix": masked}
 
 
+@app.get("/api/debug/scrape")
+async def debug_scrape(url: str):
+    import traceback
+    result = {"url": url, "logo": None, "colors": None, "logo_error": None, "color_error": None}
+    try:
+        logo = await fetch_logo(url)
+        result["logo"] = f"{len(logo)} bytes" if logo else "None"
+    except Exception:
+        result["logo_error"] = traceback.format_exc()
+    try:
+        colors = await extract_brand_colors(url)
+        result["colors"] = colors
+    except Exception:
+        result["color_error"] = traceback.format_exc()
+    return result
+
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     with open("static/index.html") as f:
@@ -138,13 +155,16 @@ async def download_pdf(jd_id: int, user_id: int = Depends(get_current_user)):
         )
     if not row:
         raise HTTPException(status_code=404, detail="Not found.")
-    website = row["company_website"]
+    website = (row["company_website"] or "").strip()
     logo_bytes, brand_colors = None, None
     if website:
-        logo_bytes, brand_colors = await asyncio.gather(
-            fetch_logo(website),
-            extract_brand_colors(website),
-        )
+        try:
+            logo_bytes, brand_colors = await asyncio.gather(
+                fetch_logo(website),
+                extract_brand_colors(website),
+            )
+        except Exception:
+            pass
     pdf = make_pdf(row["job_title"], row["company_name"], row["generated_text"], logo_bytes, brand_colors)
     filename = re.sub(r"[^\w\s\-.]", "", f"{row['company_name']} - {row['job_title']}.pdf")
     return StreamingResponse(
