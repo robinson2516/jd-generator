@@ -53,79 +53,6 @@ async def debug():
     return {"db_ok": db_ok, "db_error": db_error, "url_prefix": masked}
 
 
-@app.get("/api/debug/scrape")
-async def debug_scrape(url: str):
-    import traceback
-    import httpx as _httpx
-    result = {"url": url, "logo": None, "logo_content_type": None, "colors": None, "logo_error": None, "color_error": None}
-    try:
-        logo = await fetch_logo(url)
-        result["logo"] = f"{len(logo)} bytes" if logo else "None"
-        # Detect content type from magic bytes
-        if logo:
-            if logo[:4] == b'RIFF' and logo[8:12] == b'WEBP':
-                result["logo_content_type"] = "image/webp"
-            elif logo[:8] == b'\x89PNG\r\n\x1a\n':
-                result["logo_content_type"] = "image/png"
-            elif logo[:2] == b'\xff\xd8':
-                result["logo_content_type"] = "image/jpeg"
-            elif logo[:6] in (b'GIF87a', b'GIF89a'):
-                result["logo_content_type"] = "image/gif"
-            else:
-                result["logo_content_type"] = f"unknown (starts: {logo[:8].hex()})"
-    except Exception:
-        result["logo_error"] = traceback.format_exc()
-    try:
-        colors = await extract_brand_colors(url)
-        result["colors"] = colors
-    except Exception:
-        result["color_error"] = traceback.format_exc()
-    return result
-
-
-@app.get("/api/debug/test-pdf")
-async def debug_test_pdf(url: str):
-    """Generate a test PDF using logo + colors scraped from url."""
-    logo_bytes, brand_colors = await asyncio.gather(
-        fetch_logo(url),
-        extract_brand_colors(url),
-    )
-    pdf = make_pdf(
-        "Senior Software Engineer",
-        "Test Company",
-        "Job Overview\nThis is a test job description.\n\nKey Responsibilities\n- Write code\n- Review PRs",
-        logo_bytes,
-        brand_colors,
-    )
-    return StreamingResponse(
-        io.BytesIO(pdf),
-        media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=test.pdf"},
-    )
-
-
-@app.get("/api/debug/jd/{jd_id}")
-async def debug_jd(jd_id: int, user_id: int = Depends(get_current_user)):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT id, company_name, company_website, job_title, created_at FROM job_descriptions WHERE id = $1 AND user_id = $2",
-            jd_id, user_id,
-        )
-    if not row:
-        raise HTTPException(status_code=404, detail="Not found.")
-    return dict(row)
-
-
-@app.get("/api/debug/recent-jds")
-async def debug_recent_jds(user_id: int = Depends(get_current_user)):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT id, company_name, company_website, job_title, created_at FROM job_descriptions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5",
-            user_id,
-        )
-    return [dict(r) for r in rows]
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -215,7 +142,6 @@ async def download_pdf(jd_id: int, user_id: int = Depends(get_current_user)):
     if not row:
         raise HTTPException(status_code=404, detail="Not found.")
     website = (row["company_website"] or "").strip()
-    print(f"[PDF] jd_id={jd_id} website='{website}'")
     logo_bytes, brand_colors = None, None
     if website:
         try:
@@ -223,12 +149,9 @@ async def download_pdf(jd_id: int, user_id: int = Depends(get_current_user)):
                 fetch_logo(website),
                 extract_brand_colors(website),
             )
-            print(f"[PDF] logo={len(logo_bytes) if logo_bytes else None} colors={brand_colors}")
-        except Exception as e:
-            import traceback
-            print(f"[PDF] fetch error: {traceback.format_exc()}")
+        except Exception:
+            pass
     pdf = make_pdf(row["job_title"], row["company_name"], row["generated_text"], logo_bytes, brand_colors)
-    print(f"[PDF] generated {len(pdf)} bytes")
     filename = re.sub(r"[^\w\s\-.]", "", f"{row['company_name']} - {row['job_title']}.pdf")
     return StreamingResponse(
         io.BytesIO(pdf),
