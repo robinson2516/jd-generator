@@ -71,6 +71,15 @@ async def debug():
     return {"db_ok": db_ok, "db_error": db_error, "url_prefix": masked}
 
 
+@app.get("/api/debug/scrape")
+async def debug_scrape(url: str):
+    logo, colors = await asyncio.gather(fetch_logo(url), extract_brand_colors(url))
+    return {
+        "logo": f"{len(logo)} bytes" if logo else None,
+        "colors": colors,
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     with open("static/index.html") as f:
