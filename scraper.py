@@ -170,7 +170,7 @@ async def extract_brand_colors(url: str) -> dict:
                 lum = _luminance(color)
                 return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
 
-        # 2. Collect CSS: inline first, then same-domain external sheets
+        # 2. Collect CSS: inline first, then external sheets (same-domain first, CDN second)
         SKIP_KEYWORDS = ("bootstrap", "fontawesome", "font-awesome", "foundation",
                          "bulma", "tailwind", "animate", "jquery", "normalize", "reset")
         inline_css = " ".join(tag.string or "" for tag in soup.find_all("style"))
@@ -179,10 +179,13 @@ async def extract_brand_colors(url: str) -> dict:
             for tag in soup.find_all("link", rel=lambda r: r and "stylesheet" in r)
             if tag.get("href")
         ]
-        same_domain = [s for s in all_sheets if urlparse(s).netloc == urlparse(base).netloc
-                       and not any(k in s.lower() for k in SKIP_KEYWORDS)]
+        filtered = [s for s in all_sheets if not any(k in s.lower() for k in SKIP_KEYWORDS)]
+        same_domain = [s for s in filtered if urlparse(s).netloc == urlparse(base).netloc]
+        cdn_sheets  = [s for s in filtered if s not in same_domain]
+        # Try same-domain first, fall back to CDN sheets
+        sheet_order = (same_domain + cdn_sheets)[:4]
         ext_css = ""
-        for sheet_url in same_domain[:3]:
+        for sheet_url in sheet_order:
             try:
                 sheet_res = await client.get(sheet_url)
                 if sheet_res.status_code == 200:
@@ -204,10 +207,11 @@ async def extract_brand_colors(url: str) -> dict:
             lum = _luminance(color)
             return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
 
-        # 5. Ask Claude to identify the brand color from page HTML snippet
+        # 5. Ask Claude to identify the brand color from CSS + page text
         try:
             import anthropic, os
-            snippet = str(soup)[:8000]
+            # Send CSS first (more color info), then HTML snippet
+            context = (all_css[:4000] + "\n\n" + str(soup)[:4000]) if all_css else str(soup)[:8000]
             client_ai = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
             msg = client_ai.messages.create(
                 model="claude-haiku-4-5-20251001",
@@ -215,8 +219,8 @@ async def extract_brand_colors(url: str) -> dict:
                 messages=[{
                     "role": "user",
                     "content": (
-                        f"Look at this HTML from {base} and reply with ONLY the single most prominent "
-                        f"brand/primary hex color (e.g. #1C8391). No explanation.\n\n{snippet}"
+                        f"Based on this CSS/HTML from {base}, reply with ONLY the single most prominent "
+                        f"brand/primary hex color used for headers or buttons (e.g. #F96302). No explanation.\n\n{context}"
                     ),
                 }],
             )
