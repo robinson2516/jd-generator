@@ -152,84 +152,82 @@ async def extract_brand_colors(url: str) -> dict:
     url = _normalize_url(url)
     base = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
 
-    async with httpx.AsyncClient(headers=HEADERS, timeout=10, follow_redirects=True) as client:
-        try:
+    all_css = ""
+    try:
+        async with httpx.AsyncClient(headers=HEADERS, timeout=10, follow_redirects=True) as client:
             res = await client.get(url)
-            if res.status_code != 200:
-                return DEFAULT
-        except Exception:
-            return DEFAULT
+            if res.status_code == 200:
+                soup = BeautifulSoup(res.text, "html.parser")
 
-        soup = BeautifulSoup(res.text, "html.parser")
+                # 1. <meta name="theme-color">
+                meta = soup.find("meta", attrs={"name": "theme-color"})
+                if meta and meta.get("content", "").startswith("#"):
+                    color = meta["content"][:7]
+                    if _is_usable_brand_color(color):
+                        lum = _luminance(color)
+                        return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
 
-        # 1. <meta name="theme-color"> — most reliable signal
-        meta = soup.find("meta", attrs={"name": "theme-color"})
-        if meta and meta.get("content", "").startswith("#"):
-            color = meta["content"][:7]
-            if _is_usable_brand_color(color):
-                lum = _luminance(color)
-                return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
+                # 2. Inline + same-domain external CSS
+                SKIP_KEYWORDS = ("bootstrap", "fontawesome", "font-awesome", "foundation",
+                                 "bulma", "tailwind", "animate", "jquery", "normalize", "reset")
+                inline_css = " ".join(tag.string or "" for tag in soup.find_all("style"))
+                all_sheets = [
+                    urljoin(base, tag["href"])
+                    for tag in soup.find_all("link", rel=lambda r: r and "stylesheet" in r)
+                    if tag.get("href")
+                ]
+                same_domain = [s for s in all_sheets
+                               if urlparse(s).netloc == urlparse(base).netloc
+                               and not any(k in s.lower() for k in SKIP_KEYWORDS)]
+                ext_css = ""
+                for sheet_url in same_domain[:3]:
+                    try:
+                        sheet_res = await client.get(sheet_url)
+                        if sheet_res.status_code == 200:
+                            ext_css += sheet_res.text[:80000]
+                    except Exception:
+                        continue
 
-        # 2. Collect CSS: inline first, then external sheets (same-domain first, CDN second)
-        SKIP_KEYWORDS = ("bootstrap", "fontawesome", "font-awesome", "foundation",
-                         "bulma", "tailwind", "animate", "jquery", "normalize", "reset")
-        inline_css = " ".join(tag.string or "" for tag in soup.find_all("style"))
-        all_sheets = [
-            urljoin(base, tag["href"])
-            for tag in soup.find_all("link", rel=lambda r: r and "stylesheet" in r)
-            if tag.get("href")
-        ]
-        filtered = [s for s in all_sheets if not any(k in s.lower() for k in SKIP_KEYWORDS)]
-        same_domain = [s for s in filtered if urlparse(s).netloc == urlparse(base).netloc]
-        sheet_order = same_domain[:3]
-        ext_css = ""
-        for sheet_url in sheet_order:
-            try:
-                sheet_res = await client.get(sheet_url)
-                if sheet_res.status_code == 200:
-                    ext_css += sheet_res.text[:80000]
-            except Exception:
-                continue
+                all_css = inline_css + " " + ext_css
 
-        all_css = inline_css + " " + ext_css
+                # 3. CSS custom properties
+                color = _pick_color(all_css)
+                if color and _is_usable_brand_color(color):
+                    lum = _luminance(color)
+                    return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
 
-        # 3. CSS custom properties
-        color = _pick_color(all_css)
-        if color and _is_usable_brand_color(color):
-            lum = _luminance(color)
-            return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
+                # 4. Background color on nav/header/button selectors
+                color = _pick_bg_color(all_css)
+                if color and _is_usable_brand_color(color):
+                    lum = _luminance(color)
+                    return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
+    except Exception:
+        pass
 
-        # 4. Background color on nav/header/button selectors
-        color = _pick_bg_color(all_css)
-        if color and _is_usable_brand_color(color):
-            lum = _luminance(color)
-            return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
-
-        # 5. Ask Claude to identify the brand color — by domain name first, CSS as context
-        try:
-            import anthropic, os
-            client_ai = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-            context = f"CSS snippet:\n{all_css[:3000]}" if all_css.strip() else ""
-            msg = client_ai.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=20,
-                messages=[{
-                    "role": "user",
-                    "content": (
-                        f"What is the primary brand hex color for the company at {base}? "
-                        f"Reply with ONLY the hex color (e.g. #F96302). No explanation. "
-                        f"{context}"
-                    ),
-                }],
-            )
-            color = re.search(r"#[0-9a-fA-F]{6}", msg.content[0].text)
-            if color:
-                c = color.group(0)
-                if _is_usable_brand_color(c):
-                    lum = _luminance(c)
-                    return {"primary": c, "text_on_primary": "white" if lum < 0.4 else "dark"}
-        except Exception:
-            pass
+    # 5. Claude fallback — always runs, even if site is blocked/unreachable
+    try:
+        import anthropic, os
+        client_ai = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        context = f"CSS:\n{all_css[:3000]}" if all_css.strip() else ""
+        msg = client_ai.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=20,
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"What is the primary brand hex color for the company at {base}? "
+                    f"Reply with ONLY the hex color (e.g. #F96302). No explanation. {context}"
+                ),
+            }],
+        )
+        color = re.search(r"#[0-9a-fA-F]{6}", msg.content[0].text)
+        if color:
+            c = color.group(0)
+            if _is_usable_brand_color(c):
+                lum = _luminance(c)
+                return {"primary": c, "text_on_primary": "white" if lum < 0.4 else "dark"}
+    except Exception:
+        pass
 
     return DEFAULT
 
