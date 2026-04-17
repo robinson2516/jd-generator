@@ -207,20 +207,20 @@ async def extract_brand_colors(url: str) -> dict:
             lum = _luminance(color)
             return {"primary": color, "text_on_primary": "white" if lum < 0.4 else "dark"}
 
-        # 5. Ask Claude to identify the brand color from CSS + page text
+        # 5. Ask Claude to identify the brand color — by domain name first, CSS as context
         try:
             import anthropic, os
-            # Send CSS first (more color info), then HTML snippet
-            context = (all_css[:4000] + "\n\n" + str(soup)[:4000]) if all_css else str(soup)[:8000]
             client_ai = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+            context = f"CSS snippet:\n{all_css[:3000]}" if all_css.strip() else ""
             msg = client_ai.messages.create(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=20,
                 messages=[{
                     "role": "user",
                     "content": (
-                        f"Based on this CSS/HTML from {base}, reply with ONLY the single most prominent "
-                        f"brand/primary hex color used for headers or buttons (e.g. #F96302). No explanation.\n\n{context}"
+                        f"What is the primary brand hex color for the company at {base}? "
+                        f"Reply with ONLY the hex color (e.g. #F96302). No explanation. "
+                        f"{context}"
                     ),
                 }],
             )
