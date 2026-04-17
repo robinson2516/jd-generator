@@ -181,9 +181,7 @@ async def extract_brand_colors(url: str) -> dict:
         ]
         filtered = [s for s in all_sheets if not any(k in s.lower() for k in SKIP_KEYWORDS)]
         same_domain = [s for s in filtered if urlparse(s).netloc == urlparse(base).netloc]
-        cdn_sheets  = [s for s in filtered if s not in same_domain]
-        # Try same-domain first, fall back to CDN sheets
-        sheet_order = (same_domain + cdn_sheets)[:4]
+        sheet_order = same_domain[:3]
         ext_css = ""
         for sheet_url in sheet_order:
             try:
