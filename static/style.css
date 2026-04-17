@@ -528,3 +528,31 @@ body {
 
 /* ── Utilities ──────────────────────────────────────────────── */
 .hidden { display: none !important; }
+
+/* ── Sidebar Plan Badge ──────────────────────────────────────── */
+.sidebar-plan { padding: 12px 16px; }
+.plan-badge-sidebar { display:flex; flex-direction:column; gap:6px; background:rgba(255,255,255,0.08); border-radius:8px; padding:12px; }
+.plan-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:rgba(255,255,255,0.6); }
+.plan-label.plan-pro { color:#92c9d0; }
+.plan-usage { font-size:12px; color:rgba(255,255,255,0.5); }
+.btn-upgrade-sidebar { margin-top:4px; background:var(--accent); color:#fff; border:none; border-radius:6px; padding:7px 12px; font-size:12px; font-weight:600; cursor:pointer; }
+.btn-upgrade-sidebar:hover { background:var(--accent-hover); }
+
+/* ── Upgrade Modal ───────────────────────────────────────────── */
+.modal-backdrop { position:fixed; inset:0; background:rgba(10,68,68,0.5); display:flex; align-items:center; justify-content:center; z-index:200; padding:20px; }
+.modal-card { background:var(--bg-card); border-radius:16px; padding:40px; max-width:760px; width:100%; position:relative; box-shadow:var(--shadow-lg); }
+.modal-close { position:absolute; top:16px; right:20px; background:none; border:none; font-size:18px; color:var(--text-muted); cursor:pointer; }
+.modal-card h2 { font-size:24px; color:var(--text); margin-bottom:8px; }
+.modal-sub { color:var(--text-muted); margin-bottom:28px; }
+.pricing-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+.pricing-card { border:1.5px solid var(--border-light); border-radius:12px; padding:24px; display:flex; flex-direction:column; gap:12px; position:relative; }
+.pricing-card.featured { border-color:var(--accent); box-shadow:0 0 0 3px rgba(28,131,145,0.12); }
+.plan-badge { position:absolute; top:-11px; left:50%; transform:translateX(-50%); background:var(--accent); color:#fff; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; white-space:nowrap; }
+.pricing-card .plan-name { font-size:16px; font-weight:700; color:var(--text); }
+.pricing-card .plan-price { font-size:32px; font-weight:800; color:var(--text); }
+.pricing-card .plan-price span { font-size:14px; font-weight:400; color:var(--text-muted); }
+.plan-features { list-style:none; display:flex; flex-direction:column; gap:8px; flex:1; }
+.plan-features li { font-size:13px; color:var(--text); display:flex; align-items:center; gap:6px; }
+.plan-features li::before { content:"✓"; color:var(--success); font-weight:700; }
+.plan-features li.locked { color:var(--text-muted); }
+.plan-features li.locked::before { content:"✗"; color:var(--text-muted); }

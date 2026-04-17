@@ -1,7 +1,7 @@
 """Job Description Generator — FastAPI app."""
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
 from pydantic import BaseModel
 import asyncio
 import uvicorn
@@ -13,6 +13,7 @@ from auth import hash_password, verify_password, create_token, get_current_user
 from generator import generate_job_description
 from pdf_maker import make_pdf
 from scraper import scrape_company, fetch_logo, extract_brand_colors
+from billing import FREE_MONTHLY_LIMIT, create_checkout_session, create_portal_session, handle_webhook
 
 app = FastAPI(title="JD Generator")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -35,6 +36,23 @@ class GenerateRequest(BaseModel):
     company_website: str = ""
 
 
+# ── Helpers ────────────────────────────────────────────────────
+async def _get_user_row(user_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
+
+async def _monthly_count(user_id: int) -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            """SELECT COUNT(*) FROM job_descriptions
+               WHERE user_id = $1
+               AND created_at >= date_trunc('month', NOW())""",
+            user_id,
+        )
+
+
 # ── Routes ─────────────────────────────────────────────────────
 @app.get("/api/debug")
 async def debug():
@@ -53,41 +71,34 @@ async def debug():
     return {"db_ok": db_ok, "db_error": db_error, "url_prefix": masked}
 
 
-
-
-@app.get("/api/debug/scrape")
-async def debug_scrape(url: str):
-    import httpx as _httpx
-    from bs4 import BeautifulSoup as _BS
-    from urllib.parse import urljoin as _urljoin
-    from scraper import HEADERS, _normalize_url
-    logo, colors = await asyncio.gather(fetch_logo(url), extract_brand_colors(url))
-    # Also show stylesheet URLs found on the page
-    norm = _normalize_url(url)
-    sheets = []
-    try:
-        async with _httpx.AsyncClient(headers=HEADERS, timeout=10, follow_redirects=True) as c:
-            res = await c.get(norm)
-            soup = _BS(res.text, "html.parser")
-            from urllib.parse import urlparse as _up
-            base = f"{_up(norm).scheme}://{_up(norm).netloc}"
-            sheets = [_urljoin(base, t["href"]) for t in soup.find_all("link", rel=lambda r: r and "stylesheet" in r) if t.get("href")][:3]
-    except Exception:
-        pass
-    return {
-        "url": url,
-        "logo": f"{len(logo)} bytes" if logo else None,
-        "colors": colors,
-        "stylesheets_found": sheets,
-    }
-
-
 @app.get("/", response_class=HTMLResponse)
 async def root():
     with open("static/index.html") as f:
         return f.read()
 
+@app.get("/billing/success", response_class=HTMLResponse)
+async def billing_success(session_id: str):
+    """Handle successful Stripe checkout — upgrade user plan."""
+    import stripe, os
+    stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+        if session.payment_status == "paid":
+            user_id = int(session.metadata["user_id"])
+            plan = session.metadata["plan"]
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE users SET plan=$1, stripe_customer_id=$2, stripe_subscription_id=$3 WHERE id=$4",
+                    plan, session.customer, session.subscription, user_id,
+                )
+    except Exception:
+        pass
+    with open("static/index.html") as f:
+        return f.read()
 
+
+# ── Auth ───────────────────────────────────────────────────────
 @app.post("/api/auth/register")
 async def register(body: RegisterRequest):
     pool = await get_pool()
@@ -118,8 +129,75 @@ async def login(body: LoginRequest):
     return {"token": token, "email": body.email.lower()}
 
 
+# ── Billing ────────────────────────────────────────────────────
+@app.get("/api/billing/status")
+async def billing_status(user_id: int = Depends(get_current_user)):
+    user = await _get_user_row(user_id)
+    count = await _monthly_count(user_id)
+    plan = user["plan"] or "free"
+    return {
+        "plan": plan,
+        "monthly_count": count,
+        "monthly_limit": FREE_MONTHLY_LIMIT if plan == "free" else None,
+    }
+
+
+@app.post("/api/billing/checkout")
+async def billing_checkout(plan: str, request: Request, user_id: int = Depends(get_current_user)):
+    if plan not in ("pro", "team"):
+        raise HTTPException(status_code=400, detail="Invalid plan.")
+    user = await _get_user_row(user_id)
+    base_url = str(request.base_url).rstrip("/")
+    url = create_checkout_session(plan, user_id, user["email"], base_url)
+    return {"url": url}
+
+
+@app.get("/api/billing/portal")
+async def billing_portal(request: Request, user_id: int = Depends(get_current_user)):
+    user = await _get_user_row(user_id)
+    if not user["stripe_customer_id"]:
+        raise HTTPException(status_code=400, detail="No active subscription.")
+    base_url = str(request.base_url).rstrip("/")
+    url = create_portal_session(user["stripe_customer_id"], base_url)
+    return {"url": url}
+
+
+@app.post("/api/billing/webhook")
+async def billing_webhook(request: Request):
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    result = handle_webhook(payload, sig)
+    if result:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            if "user_id" in result:
+                await conn.execute(
+                    "UPDATE users SET plan=$1, stripe_customer_id=$2, stripe_subscription_id=$3 WHERE id=$4",
+                    result["plan"], result["customer_id"], result["subscription_id"], result["user_id"],
+                )
+            else:
+                # Subscription cancelled — find user by customer ID
+                await conn.execute(
+                    "UPDATE users SET plan='free', stripe_subscription_id=NULL WHERE stripe_customer_id=$1",
+                    result["customer_id"],
+                )
+    return {"ok": True}
+
+
+# ── Generate ───────────────────────────────────────────────────
 @app.post("/api/generate")
 async def generate(body: GenerateRequest, user_id: int = Depends(get_current_user)):
+    user = await _get_user_row(user_id)
+    plan = user["plan"] or "free"
+
+    if plan == "free":
+        count = await _monthly_count(user_id)
+        if count >= FREE_MONTHLY_LIMIT:
+            raise HTTPException(
+                status_code=402,
+                detail=f"Free plan limit of {FREE_MONTHLY_LIMIT} job descriptions per month reached. Upgrade to continue.",
+            )
+
     company_context = await scrape_company(body.company_website) if body.company_website else ""
     text = generate_job_description(
         body.company_name, body.job_title, body.skills, body.experience_level, company_context
@@ -136,8 +214,13 @@ async def generate(body: GenerateRequest, user_id: int = Depends(get_current_use
     return {"id": record["id"], "text": text}
 
 
+# ── History ────────────────────────────────────────────────────
 @app.get("/api/history")
 async def history(user_id: int = Depends(get_current_user)):
+    user = await _get_user_row(user_id)
+    if (user["plan"] or "free") == "free":
+        raise HTTPException(status_code=403, detail="upgrade_required")
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -158,8 +241,13 @@ async def history(user_id: int = Depends(get_current_user)):
     ]
 
 
+# ── PDF Download ───────────────────────────────────────────────
 @app.get("/api/history/{jd_id}/pdf")
 async def download_pdf(jd_id: int, user_id: int = Depends(get_current_user)):
+    user = await _get_user_row(user_id)
+    if (user["plan"] or "free") == "free":
+        raise HTTPException(status_code=403, detail="upgrade_required")
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(

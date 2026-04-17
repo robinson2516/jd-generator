@@ -46,3 +46,11 @@ async def _init_db(pool):
             ALTER TABLE job_descriptions
             ADD COLUMN IF NOT EXISTS company_website TEXT
         """)
+        await conn.execute("""
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT
+        """)
+        await conn.execute("""
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT
+        """)

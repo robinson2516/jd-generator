@@ -139,6 +139,7 @@
           <svg viewBox="0 0 24 24"><path d="M12 8v4l3 3M3.05 11a9 9 0 1 0 .5-3"/><path d="M3 4v4h4"/></svg>
           History
         </button>
+        <div class="sidebar-plan" id="sidebar-plan"></div>
         <button class="nav-item logout" onclick="doLogout()" style="margin-top:auto">
           <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
           Sign Out
@@ -241,6 +242,49 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
+
+  <!-- ── Upgrade Modal ─────────────────────────────────────── -->
+  <div id="upgrade-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <button class="modal-close" onclick="closeUpgrade()">✕</button>
+      <h2>Upgrade Your Plan</h2>
+      <p class="modal-sub">You've reached the free plan limit. Choose a plan to continue.</p>
+      <div class="pricing-grid">
+        <div class="pricing-card">
+          <div class="plan-name">Free</div>
+          <div class="plan-price">$0</div>
+          <ul class="plan-features">
+            <li>3 JDs / month</li>
+            <li class="locked">No PDF download</li>
+            <li class="locked">No history</li>
+          </ul>
+          <button class="btn btn-ghost" disabled>Current Plan</button>
+        </div>
+        <div class="pricing-card featured">
+          <div class="plan-badge">Most Popular</div>
+          <div class="plan-name">Pro</div>
+          <div class="plan-price">$12<span>/mo</span></div>
+          <ul class="plan-features">
+            <li>Unlimited JDs</li>
+            <li>PDF download</li>
+            <li>Full history</li>
+          </ul>
+          <button class="btn btn-primary" onclick="startCheckout('pro')">Upgrade to Pro</button>
+        </div>
+        <div class="pricing-card">
+          <div class="plan-name">Team</div>
+          <div class="plan-price">$39<span>/mo</span></div>
+          <ul class="plan-features">
+            <li>Unlimited JDs</li>
+            <li>PDF download</li>
+            <li>Full history</li>
+            <li>3–5 seats</li>
+          </ul>
+          <button class="btn btn-primary" onclick="startCheckout('team')">Upgrade to Team</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>

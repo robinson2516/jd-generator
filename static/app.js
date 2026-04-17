@@ -83,6 +83,50 @@ function showApp() {
   document.getElementById('auth-screen').classList.add('hidden');
   document.getElementById('app-shell').classList.remove('hidden');
   showView('generate');
+  loadBillingStatus();
+}
+
+/* ── Billing Status ──────────────────────────────────────────── */
+async function loadBillingStatus() {
+  try {
+    const res = await fetch('/api/billing/status', {
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('jd_token') },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const el = document.getElementById('sidebar-plan');
+    if (data.plan === 'free') {
+      el.innerHTML = `
+        <div class="plan-badge-sidebar">
+          <span class="plan-label">Free Plan</span>
+          <span class="plan-usage">${data.monthly_count}/${data.monthly_limit} this month</span>
+          <button class="btn-upgrade-sidebar" onclick="showUpgrade()">Upgrade</button>
+        </div>`;
+    } else {
+      el.innerHTML = `<div class="plan-badge-sidebar"><span class="plan-label plan-pro">${data.plan.charAt(0).toUpperCase() + data.plan.slice(1)} Plan</span></div>`;
+    }
+  } catch(e) {}
+}
+
+/* ── Upgrade Modal ───────────────────────────────────────────── */
+function showUpgrade() {
+  document.getElementById('upgrade-modal').classList.remove('hidden');
+}
+function closeUpgrade() {
+  document.getElementById('upgrade-modal').classList.add('hidden');
+}
+
+async function startCheckout(plan) {
+  try {
+    const res = await fetch(`/api/billing/checkout?plan=${plan}`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('jd_token') },
+    });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+  } catch(e) {
+    showToast('Could not start checkout. Please try again.', 'error');
+  }
 }
 
 /* ── Navigation ──────────────────────────────────────────────── */
@@ -126,6 +170,7 @@ async function doGenerate() {
       }),
     });
     const data = await res.json();
+    if (res.status === 402) { showUpgrade(); document.getElementById('gen-processing').classList.add('hidden'); document.getElementById('gen-form-card').classList.remove('hidden'); return; }
     if (!res.ok) throw new Error(data.detail || 'Generation failed.');
 
     currentJdId = data.id;
@@ -186,8 +231,9 @@ async function loadHistory() {
     const res  = await fetch('/api/history', {
       headers: { 'Authorization': 'Bearer ' + localStorage.getItem('jd_token') },
     });
-    const rows = await res.json();
     document.getElementById('history-loading').classList.add('hidden');
+    if (res.status === 403) { document.getElementById('history-empty').textContent = 'History is available on Pro and Team plans.'; document.getElementById('history-empty').classList.remove('hidden'); document.getElementById('history-empty').innerHTML += ' <button class="btn btn-primary" style="margin-top:12px" onclick="showUpgrade()">Upgrade</button>'; return; }
+    const rows = await res.json();
 
     if (!rows.length) {
       document.getElementById('history-empty').classList.remove('hidden');
