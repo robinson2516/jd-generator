@@ -556,3 +556,8 @@ body {
 .plan-features li::before { content:"✓"; color:var(--success); font-weight:700; }
 .plan-features li.locked { color:var(--text-muted); }
 .plan-features li.locked::before { content:"✗"; color:var(--text-muted); }
+
+
+/* ── Logo Upload ─────────────────────────────────────────────── */
+.logo-upload-area { border:1.5px dashed var(--border-light); border-radius:8px; padding:16px 20px; cursor:pointer; display:flex; align-items:center; min-height:52px; transition:border-color .15s; }
+.logo-upload-area:hover { border-color:var(--accent); }

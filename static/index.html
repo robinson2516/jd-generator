@@ -178,6 +178,17 @@
               <label>Experience / Education Level</label>
               <input type="text" id="f-experience" placeholder="e.g. 5+ years experience, Bachelor's degree preferred" />
             </div>
+            <div class="field-group full-width">
+              <label>Company Logo <span style="color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0">(optional — appears on PDF)</span></label>
+              <div class="logo-upload-area" id="logo-upload-area" onclick="document.getElementById('f-logo').click()">
+                <input type="file" id="f-logo" accept=".png,.jpg,.jpeg,.gif,.webp" hidden />
+                <div id="logo-preview-wrap" class="hidden" style="display:flex;align-items:center;gap:12px">
+                  <img id="logo-preview" src="" alt="Logo" style="max-height:48px;max-width:160px;object-fit:contain" />
+                  <button type="button" class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="event.stopPropagation();clearLogo()">Remove</button>
+                </div>
+                <span id="logo-placeholder" style="color:var(--text-muted);font-size:14px">Click to upload logo</span>
+              </div>
+            </div>
           </div>
           <button class="btn btn-primary" id="btn-generate" onclick="doGenerate()">
             <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>

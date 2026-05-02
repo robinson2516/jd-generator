@@ -1,9 +1,8 @@
 """Job Description Generator — FastAPI app."""
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, Form, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
-from pydantic import BaseModel
-import asyncio
+import base64
 import uvicorn
 import io
 import re
@@ -12,7 +11,7 @@ from database import get_pool
 from auth import hash_password, verify_password, create_token, get_current_user
 from generator import generate_job_description
 from pdf_maker import make_pdf
-from scraper import scrape_company, fetch_logo, extract_brand_colors
+from scraper import scrape_company
 from billing import FREE_MONTHLY_LIMIT, create_checkout_session, create_portal_session, handle_webhook
 
 app = FastAPI(title="JD Generator")
@@ -28,12 +27,6 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
-class GenerateRequest(BaseModel):
-    company_name: str
-    job_title: str
-    skills: str
-    experience_level: str
-    company_website: str = ""
 
 
 # ── Helpers ────────────────────────────────────────────────────
@@ -221,7 +214,15 @@ async def billing_webhook(request: Request):
 
 # ── Generate ───────────────────────────────────────────────────
 @app.post("/api/generate")
-async def generate(body: GenerateRequest, user_id: int = Depends(get_current_user)):
+async def generate(
+    company_name: str = Form(...),
+    job_title: str = Form(...),
+    skills: str = Form(...),
+    experience_level: str = Form(...),
+    company_website: str = Form(""),
+    logo: UploadFile | None = File(None),
+    user_id: int = Depends(get_current_user),
+):
     user = await _get_user_row(user_id)
     plan = user["plan"] or "free"
 
@@ -233,18 +234,24 @@ async def generate(body: GenerateRequest, user_id: int = Depends(get_current_use
                 detail=f"Free plan limit of {FREE_MONTHLY_LIMIT} job descriptions per month reached. Upgrade to continue.",
             )
 
-    company_context = await scrape_company(body.company_website) if body.company_website else ""
+    logo_data = None
+    if logo and logo.filename:
+        logo_bytes = await logo.read()
+        if logo_bytes:
+            logo_data = base64.b64encode(logo_bytes).decode()
+
+    company_context = await scrape_company(company_website) if company_website else ""
     text = generate_job_description(
-        body.company_name, body.job_title, body.skills, body.experience_level, company_context
+        company_name, job_title, skills, experience_level, company_context
     )
     pool = await get_pool()
     async with pool.acquire() as conn:
         record = await conn.fetchrow(
             """INSERT INTO job_descriptions
-               (user_id, company_name, company_website, job_title, skills, experience_level, generated_text)
-               VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id""",
-            user_id, body.company_name, body.company_website or None,
-            body.job_title, body.skills, body.experience_level, text,
+               (user_id, company_name, company_website, job_title, skills, experience_level, generated_text, logo_data)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id""",
+            user_id, company_name, company_website or None,
+            job_title, skills, experience_level, text, logo_data,
         )
     return {"id": record["id"], "text": text}
 
@@ -291,17 +298,8 @@ async def download_pdf(jd_id: int, user_id: int = Depends(get_current_user)):
         )
     if not row:
         raise HTTPException(status_code=404, detail="Not found.")
-    website = (row["company_website"] or "").strip()
-    logo_bytes, brand_colors = None, None
-    if website:
-        try:
-            logo_bytes, brand_colors = await asyncio.gather(
-                fetch_logo(website),
-                extract_brand_colors(website),
-            )
-        except Exception:
-            pass
-    pdf = make_pdf(row["job_title"], row["company_name"], row["generated_text"], logo_bytes, brand_colors)
+    logo_bytes = base64.b64decode(row["logo_data"]) if row["logo_data"] else None
+    pdf = make_pdf(row["job_title"], row["company_name"], row["generated_text"], logo_bytes)
     filename = re.sub(r"[^\w\s\-.]", "", f"{row['company_name']} - {row['job_title']}.pdf")
     return StreamingResponse(
         io.BytesIO(pdf),

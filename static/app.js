@@ -1,6 +1,30 @@
 /* ── State ───────────────────────────────────────────────────── */
 let currentJdId = null;
 
+/* ── Logo upload preview ─────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('f-logo').addEventListener('change', function () {
+    const file = this.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('logo-preview').src = e.target.result;
+      document.getElementById('logo-preview-wrap').classList.remove('hidden');
+      document.getElementById('logo-preview-wrap').style.display = 'flex';
+      document.getElementById('logo-placeholder').classList.add('hidden');
+    };
+    reader.readAsDataURL(file);
+  });
+});
+
+function clearLogo() {
+  document.getElementById('f-logo').value = '';
+  document.getElementById('logo-preview').src = '';
+  document.getElementById('logo-preview-wrap').classList.add('hidden');
+  document.getElementById('logo-preview-wrap').style.display = 'none';
+  document.getElementById('logo-placeholder').classList.remove('hidden');
+}
+
 /* ── Init ────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   const token = localStorage.getItem('jd_token');
@@ -155,19 +179,19 @@ async function doGenerate() {
   document.getElementById('gen-processing').classList.remove('hidden');
 
   try {
+    const form = new FormData();
+    form.append('company_name', company);
+    form.append('job_title', title);
+    form.append('skills', skills);
+    form.append('experience_level', experience);
+    form.append('company_website', website);
+    const logoFile = document.getElementById('f-logo').files[0];
+    if (logoFile) form.append('logo', logoFile);
+
     const res  = await fetch('/api/generate', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + localStorage.getItem('jd_token'),
-      },
-      body: JSON.stringify({
-        company_name: company,
-        job_title: title,
-        skills,
-        experience_level: experience,
-        company_website: website,
-      }),
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('jd_token') },
+      body: form,
     });
     const data = await res.json();
     if (res.status === 402) { showUpgrade(); document.getElementById('gen-processing').classList.add('hidden'); document.getElementById('gen-form-card').classList.remove('hidden'); return; }
