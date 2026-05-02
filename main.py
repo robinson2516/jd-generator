@@ -2,6 +2,8 @@
 from fastapi import FastAPI, Depends, HTTPException, Request, Form, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
+from pydantic import BaseModel
+from typing import Optional
 import base64
 import uvicorn
 import io
@@ -63,40 +65,6 @@ async def debug():
         db_error = traceback.format_exc()
     return {"db_ok": db_ok, "db_error": db_error, "url_prefix": masked}
 
-
-@app.get("/api/debug/scrape")
-async def debug_scrape(url: str):
-    import traceback, anthropic, os
-    logo_err = color_err = claude_err = None
-    logo = colors = None
-    try:
-        logo = await fetch_logo(url)
-    except Exception:
-        logo_err = traceback.format_exc()
-    try:
-        colors = await extract_brand_colors(url)
-    except Exception:
-        color_err = traceback.format_exc()
-    # Test Claude directly
-    claude_result = None
-    try:
-        client_ai = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-        msg = client_ai.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=20,
-            messages=[{"role": "user", "content": f"What is the primary brand hex color for homedepot.com? Reply with ONLY the hex color."}],
-        )
-        claude_result = msg.content[0].text
-    except Exception:
-        claude_err = traceback.format_exc()
-    return {
-        "logo": f"{len(logo)} bytes" if logo else None,
-        "colors": colors,
-        "logo_error": logo_err,
-        "color_error": color_err,
-        "claude_direct": claude_result,
-        "claude_error": claude_err,
-    }
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -220,7 +188,7 @@ async def generate(
     skills: str = Form(...),
     experience_level: str = Form(...),
     company_website: str = Form(""),
-    logo: UploadFile | None = File(None),
+    logo: Optional[UploadFile] = File(None),
     user_id: int = Depends(get_current_user),
 ):
     user = await _get_user_row(user_id)

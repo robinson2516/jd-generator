@@ -24,7 +24,7 @@ def make_pdf(
     job_title: str,
     company_name: str,
     content: str,
-    logo_bytes: bytes | None = None,
+    logo_bytes=None,
 ) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
