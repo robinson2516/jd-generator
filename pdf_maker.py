@@ -1,15 +1,25 @@
 """Generates a formatted PDF from job description text."""
 import io
+import random
+import colorsys
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.lib.colors import HexColor, white, black
+from reportlab.lib.colors import HexColor, white
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image
 from reportlab.lib.enums import TA_CENTER
 
-BURNT_ORANGE = HexColor("#CC5500")
-BODY_TEXT    = HexColor("#1A1A1A")
-BORDER       = HexColor("#E0E0E0")
+BODY_TEXT = HexColor("#1A1A1A")
+BORDER    = HexColor("#E0E0E0")
+
+
+def _random_banner_color() -> HexColor:
+    """Return a random vivid color suitable as a banner background with white text."""
+    hue        = random.random()               # full spectrum
+    saturation = random.uniform(0.55, 0.90)   # vivid but not neon
+    value      = random.uniform(0.42, 0.68)   # dark enough for white text
+    r, g, b = colorsys.hsv_to_rgb(hue, saturation, value)
+    return HexColor("#{:02X}{:02X}{:02X}".format(int(r*255), int(g*255), int(b*255)))
 
 SECTIONS = {
     "job overview",
@@ -26,6 +36,8 @@ def make_pdf(
     content: str,
     logo_bytes=None,
 ) -> bytes:
+    banner_color = _random_banner_color()
+
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=letter,
@@ -43,7 +55,7 @@ def make_pdf(
         fontName="Helvetica", spaceAfter=0,
     )
     section_style = ParagraphStyle(
-        "Section", fontSize=10, textColor=BURNT_ORANGE,
+        "Section", fontSize=10, textColor=banner_color,
         fontName="Helvetica-Bold", spaceBefore=18, spaceAfter=6,
         letterSpacing=1.2,
     )
@@ -89,7 +101,7 @@ def make_pdf(
     ]
     header_table = Table(header_data, colWidths=[text_width, LOGO_SIZE + 16])
     header_table.setStyle(TableStyle([
-        ("BACKGROUND",    (0, 0), (-1, -1), BURNT_ORANGE),
+        ("BACKGROUND",    (0, 0), (-1, -1), banner_color),
         ("ROUNDEDCORNERS", [8]),
         ("TOPPADDING",    (0, 0), (-1, 0),  20),
         ("BOTTOMPADDING", (0, 0), (-1, 0),  2),
