@@ -1,5 +1,6 @@
 fastapi
 uvicorn
+python-multipart
 anthropic
 asyncpg
 python-jose[cryptography]
